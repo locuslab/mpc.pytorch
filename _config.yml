@@ -1,0 +1,23 @@
+title: mpc.pytorch
+short_description: A fast and differentiable MPC solver for PyTorch
+description: |
+  A fast and differentiable model predictive control (MPC)
+  solver for PyTorch.
+  Crafted by <a href="https://bamos.github.io">Brandon Amos</a>,
+  Ivan Jimenez,
+  Jacob Sacks,
+  <a href='https://www.cc.gatech.edu/~bboots3/'>Byron Boots</a>,
+  and
+  <a href="https://zicokolter.com">J. Zico Kolter</a>.
+  For more context and details, see our
+  <a href="https://arxiv.org/abs/1703.00443">ICML 2017 paper on OptNet</a>
+  and our (forthcoming) NIPS 2018 paper on differentiable MPC.
+github:
+  is_project_page: True
+  repository_url: 'https://github.com/locuslab/mpc.pytorch'
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  math_engine: mathjax
+  syntax_highlighter: rouge
