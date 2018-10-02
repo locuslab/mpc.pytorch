@@ -3,7 +3,7 @@
 [pypi-image]: https://img.shields.io/pypi/v/mpc.svg
 [pypi]: https://pypi.python.org/pypi/mpc
 
-[license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
+[license-image]: http://img.shields.io/badge/license-MIT-blue.svg?style=flat
 [license]: LICENSE
 
 *A fast and differentiable model predictive control solver for PyTorch.
@@ -20,4 +20,4 @@ and
 + This code curently only support PyTorch 0.3 and an update
   to a newer version of PyTorch is coming soon.
 + This is still an early alpha release, be prepared for some rough
-  patches and get in touch if you have any questions!
+  spots and get in touch if you have any questions!
