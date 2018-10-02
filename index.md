@@ -143,11 +143,13 @@ forthcoming NIPS 2018 paper
 
 ## Install via pip
 
-Coming soon.
+```
+pip install mpc
+```
 
-```
-pip install TODO
-```
+# Example: Linear control
+
+Coming soon.
 
 # Example: Pendulum control
 
