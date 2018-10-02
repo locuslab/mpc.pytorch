@@ -88,9 +88,9 @@ libraries such as
 [fast_mpc](https://web.stanford.edu/~boyd/fast_mpc/).
 Sounds like fun!
 
-# This library: A PyTorch layer for MPC
+# This Library: A Differentiable PyTorch MPC Layer
 
-We provide a clean PyTorch library for solving the non-convex
+We provide a PyTorch library for solving the non-convex
 control problem
 
 $$
@@ -120,13 +120,13 @@ on the GPU with minimal overhead.*
 (More performance results coming soon)
 
 ## Internally we solve a sequence of quadratic programs
-![](./images/qp-iters.png)
-
 More details on this are in the
 [box-DDP](https://homes.cs.washington.edu/~todorov/papers/TassaICRA14.pdf)
 paper that we implement.
 
-# MPC as a Layer
+![](./images/qp-iters.png)
+
+# Differentiable MPC as a Layer
 
 ![](./images/mpc-layer.png)
 
@@ -140,18 +140,60 @@ forthcoming NIPS 2018 paper
 # Setup and Dependencies
 
 + Python/numpy/[PyTorch](https://pytorch.org)
-
-## Install via pip
++ You can set this project up manually by cloning the git repo
+  or you can install it via pip with:
 
 ```
 pip install mpc
 ```
 
-# Example: Linear control
+# Example: Time-Varying Linear Control
 
-Coming soon.
+{% highlight Python %}
+import torch
+from torch.autograd import Variable
+from mpc import mpc
 
-# Example: Pendulum control
+torch.manual_seed(0)
+
+n_batch, n_state, n_ctrl, T = 2, 3, 4, 5
+n_sc = n_state + n_ctrl
+
+# Randomly initialize a PSD quadratic cost and linear dynamics.
+C = torch.randn(T*n_batch, n_sc, n_sc)
+C = torch.bmm(C, C.transpose(1, 2)).view(T, n_batch, n_sc, n_sc)
+c = torch.randn(T, n_batch, n_sc)
+
+alpha = 0.2
+R = (torch.eye(n_state)+alpha*torch.randn(n_state, n_state)).repeat(T, n_batch, 1, 1)
+S = torch.randn(T, n_batch, n_state, n_ctrl)
+F = torch.cat((R, S), dim=3)
+
+# The initial state.
+x_init = torch.randn(n_batch, n_state)
+
+# The upper and lower control bounds.
+u_lower = -torch.rand(T, n_batch, n_ctrl)
+u_upper = torch.rand(T, n_batch, n_ctrl)
+
+C, c, x_init, u_lower, u_upper, F = map(Variable, [C, c, x_init, u_lower, u_upper, F])
+
+x_lqr, u_lqr, objs_lqr = mpc.MPC(
+    n_state=n_state,
+    n_ctrl=n_ctrl,
+    T=T,
+    x_init=x_init,
+    u_lower=u_lower, 
+    u_upper=u_upper,
+    lqr_iter=20,
+    verbose=1,
+    backprop=False,
+    exit_unconverged=False,
+    F=F,
+)(C, c)
+{% endhighlight %}
+
+# Example: Pendulum Control
 
 Coming soon.
 
