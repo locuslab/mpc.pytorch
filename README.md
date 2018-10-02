@@ -1,4 +1,4 @@
-# qpth • [![PyPi][pypi-image]][pypi] [![License][license-image]][license]
+# mpc.pytorch • [![PyPi][pypi-image]][pypi] [![License][license-image]][license]
 
 [pypi-image]: https://img.shields.io/pypi/v/mpc.svg
 [pypi]: https://pypi.python.org/pypi/mpc
@@ -19,3 +19,5 @@ and
 + [More details are available on our project website here](http://locuslab.github.io/mpc.pytorch)
 + This code curently only support PyTorch 0.3 and an update
   to a newer version of PyTorch is coming soon.
++ This is still an early alpha release, be prepared for some rough
+  patches and get in touch if you have any questions!
