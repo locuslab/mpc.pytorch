@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import torch
 from torch.autograd import Function, Variable
 import torch.nn.functional as F
@@ -10,10 +12,18 @@ from empc import util
 
 import os
 
+import shutil
+FFMPEG_BIN = shutil.which('ffmpeg')
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.style.use('bmh')
+
+# import sys
+# from IPython.core import ultratb
+# sys.excepthook = ultratb.FormattedTB(mode='Verbose',
+#      color_scheme='Linux', call_pdb=1)
 
 class CartpoleDx(nn.Module):
     def __init__(self, params=None):
@@ -59,7 +69,7 @@ class CartpoleDx(nn.Module):
 
         if state.is_cuda and not self.params.is_cuda:
             self.params = self.params.cuda()
-        gravity, masscart, masspole, length = torch.unbind(self.params)
+        gravity, masscart, masspole, length = torch.unbind(self.params.data)
         total_mass = masspole + masscart
         polemass_length = masspole * length
 
@@ -89,9 +99,10 @@ class CartpoleDx(nn.Module):
         state = util.get_data_maybe(state.view(-1))
         assert len(state) == 5
         x, dx, cos_th, sin_th, dth = torch.unbind(state)
+        gravity, masscart, masspole, length = torch.unbind(self.params)
         th = np.arctan2(sin_th, cos_th)
-        th_x = sin_th*self.length*2
-        th_y = cos_th*self.length*2
+        th_x = sin_th*length*2
+        th_y = cos_th*length*2
         fig, ax = plt.subplots(figsize=(6,6))
         ax.plot((x,x+th_x), (0, th_y), color='k')
         ax.set_xlim((-5., 5.))
@@ -126,9 +137,10 @@ if __name__ == '__main__':
     vid_file = 'cartpole_vid.mp4'
     if os.path.exists(vid_file):
         os.remove(vid_file)
-    cmd = ('/usr/bin/ffmpeg -loglevel quiet '
+    cmd = ('{} -loglevel quiet '
             '-r 32 -f image2 -i %03d.png -vcodec '
             'libx264 -crf 25 -pix_fmt yuv420p {}').format(
+        FFMPEG_BIN,
         vid_file
     )
     os.system(cmd)
