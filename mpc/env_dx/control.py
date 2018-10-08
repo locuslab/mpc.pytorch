@@ -10,14 +10,12 @@ from torch.nn.parameter import Parameter
 
 import numpy as np
 
-from empc import util
-
 import os
 
-from empc import lqr
-from empc.lqr import GradMethods
-import empc.util as eutil
-from empc.env_dx import pendulum, cartpole
+from mpc import mpc, util
+from mpc.mpc import GradMethods
+import mpc.util as eutil
+from mpc.env_dx import pendulum, cartpole
 
 import matplotlib
 matplotlib.use('Agg')
@@ -87,7 +85,7 @@ def solve_lqr(dx, xinit, q, p, T,
     p = p.unsqueeze(0).repeat(T, n_batch, 1)
 
     lqr_iter = 100 if u_init is None else 10
-    x_lqr, u_lqr, objs_lqr = lqr.LQR(
+    x_lqr, u_lqr, objs_lqr = mpc.MPC(
         dx.n_state, dx.n_ctrl, T, xinit,
         u_lower=dx.lower, u_upper=dx.upper, u_init=u_init,
         lqr_iter=lqr_iter,
