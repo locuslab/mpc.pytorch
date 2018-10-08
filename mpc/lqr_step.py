@@ -10,7 +10,7 @@ from collections import namedtuple
 
 import time
 
-from . import util
+from . import util, mpc
 from .pnqp import pnqp
 
 LqrBackOut = namedtuple('lqrBackOut', 'Ks ks n_total_qp_iter')
@@ -137,7 +137,7 @@ class LQRStep(Function):
             I = (torch.abs(new_u - self.u_lower) <= 1e-8) | \
                 (torch.abs(new_u - self.u_upper) <= 1e-8)
         dx_init = Variable(torch.zeros_like(x_init))
-        _lqr = lqr.LQR(
+        _mpc = mpc.MPC(
             self.n_state, self.n_ctrl, self.T,
             dx_init,
             u_zero_I=I,
@@ -151,7 +151,7 @@ class LQRStep(Function):
             F=Variable(F),
             eps=self.back_eps,
         )
-        dx, du, _ = _lqr(Variable(C), -Variable(r))
+        dx, du, _ = _mpc(Variable(C), -Variable(r))
 
         dx, du = dx.data, du.data
         dxu = torch.cat((dx, du), 2)
@@ -229,6 +229,7 @@ class LQRStep(Function):
         ks = []
         prev_kt = None
         n_total_qp_iter = 0
+        Vtp1 = vtp1 = None
         for t in range(self.T-1, -1, -1):
             if t == self.T-1:
                 Qt = C[t]
