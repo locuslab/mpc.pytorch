@@ -23,7 +23,7 @@ install:
 - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION numpy scipy nose
   pip
 - conda install -y numpy mkl setuptools cmake gcc cffi
-- conda install pytorch torchvision -c pytorch
+- conda install -y pytorch torchvision -c pytorch
 - source activate test-environment
 - pip install numdifftools cvxpy block
 - python setup.py install
