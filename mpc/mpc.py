@@ -124,8 +124,6 @@ class MPC(Module):
             exit_unconverged=True,
             detach_unconverged=True,
             backprop=True,
-            F=None,
-            f=None,
             slew_rate_penalty=None,
             prev_ctrl=None,
             not_improved_lim=5,
