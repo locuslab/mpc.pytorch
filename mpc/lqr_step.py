@@ -46,6 +46,7 @@ class LQRStep(Function):
             delta_u=None,
             linesearch_decay=0.2,
             max_linesearch_iter=10,
+            true_cost=None,
             true_dynamics=None,
             delta_space=True,
             current_x=None,
@@ -75,6 +76,7 @@ class LQRStep(Function):
         self.delta_u = delta_u
         self.linesearch_decay = linesearch_decay
         self.max_linesearch_iter = max_linesearch_iter
+        self.true_cost = true_cost
         self.true_dynamics = true_dynamics
         self.delta_space = delta_space
         self.current_x = util.get_data_maybe(current_x)
@@ -139,7 +141,6 @@ class LQRStep(Function):
         dx_init = Variable(torch.zeros_like(x_init))
         _mpc = mpc.MPC(
             self.n_state, self.n_ctrl, self.T,
-            dx_init,
             u_zero_I=I,
             u_init=None,
             lqr_iter=1,
@@ -148,10 +149,9 @@ class LQRStep(Function):
             delta_u=None,
             # exit_unconverged=True, # It's really bad if this doesn't converge.
             exit_unconverged=False, # It's really bad if this doesn't converge.
-            F=Variable(F),
             eps=self.back_eps,
         )
-        dx, du, _ = _mpc(Variable(C), -Variable(r))
+        dx, du, _ = _mpc(dx_init, mpc.QuadCost(C, -r), mpc.LinDx(F, None))
 
         dx, du = dx.data, du.data
         dxu = torch.cat((dx, du), 2)
@@ -339,12 +339,7 @@ class LQRStep(Function):
         u = self.current_u
         n_batch = C.size(1)
 
-        if self.true_dynamics is not None:
-            old_cost = util.get_cost(
-                self.T, C, c, u, dynamics=self.true_dynamics, x=x)
-        else:
-            old_cost = util.get_cost(
-                self.T, C, c, u, x=x, F=F, f=f)
+        old_cost = util.get_cost(self.T, u, self.true_cost, self.true_dynamics, x=x)
 
         current_cost = None
         alphas = torch.ones(n_batch).type_as(C)
@@ -391,17 +386,24 @@ class LQRStep(Function):
 
                 new_xut = torch.cat((new_xt, new_ut), dim=1)
                 if t < self.T-1:
-                    if self.true_dynamics is not None:
-                        new_xtp1 = self.true_dynamics(
-                            Variable(new_xt), Variable(new_ut)).data
-                    else:
+                    if isinstance(self.true_dynamics, mpc.LinDx):
+                        F, f = self.true_dynamics.F, self.true_dynamics.f
                         new_xtp1 = util.bmv(F[t], new_xut)
                         if f is not None and f.nelement() > 0:
                             new_xtp1 += f[t]
+                    else:
+                        new_xtp1 = self.true_dynamics(
+                            Variable(new_xt), Variable(new_ut)).data
+
                     new_x.append(new_xtp1)
                     dx.append(new_xtp1 - x[t+1])
 
-                obj = 0.5*util.bquad(new_xut, C[t]) + util.bdot(new_xut, c[t])
+                if isinstance(self.true_cost, mpc.QuadCost):
+                    C, c = self.true_cost.C, self.true_cost.c
+                    obj = 0.5*util.bquad(new_xut, C[t]) + util.bdot(new_xut, c[t])
+                else:
+                    obj = self.true_cost(new_xut)
+
                 objs.append(obj)
 
             objs = torch.stack(objs)

@@ -5,6 +5,8 @@ from torch.nn.parameter import Parameter
 
 import operator
 
+from . import mpc
+
 def jacobian(f, x, eps):
     if x.ndimension() == 2:
         assert x.size(0) == 1
@@ -45,11 +47,11 @@ def bmv(X, y):
 
 
 def bquad(x, Q):
-    return x.unsqueeze(1).bmm(Q).bmm(x.unsqueeze(2)).squeeze()
+    return x.unsqueeze(1).bmm(Q).bmm(x.unsqueeze(2)).squeeze(1).squeeze(1)
 
 
 def bdot(x, y):
-    return torch.bmm(x.unsqueeze(1), y.unsqueeze(2)).squeeze()
+    return torch.bmm(x.unsqueeze(1), y.unsqueeze(2)).squeeze(1).squeeze(1)
 
 
 def eclamp(x, lower, upper):
@@ -98,43 +100,61 @@ def table_log(tag, d):
     print_row(s)
 
 
-def get_traj(T, u, x_init, dynamics=None, F=None, f=None):
-    assert (dynamics is None) != (F is None)
+def get_traj(T, u, x_init, dynamics):
+    if isinstance(dynamics, mpc.LinDx):
+        F = get_data_maybe(dynamics.F)
+        f = get_data_maybe(dynamics.f)
 
-    F = get_data_maybe(F)
-    f = get_data_maybe(f)
     x = [get_data_maybe(x_init)]
     for t in range(T):
         xt = x[t]
         ut = get_data_maybe(u[t])
         if t < T-1:
             # new_x = f(Variable(xt), Variable(ut)).data
-            if dynamics is not None:
-                new_x = dynamics(Variable(xt), Variable(ut)).data
-            else:
+            if isinstance(dynamics, mpc.LinDx):
                 xut = torch.cat((xt, ut), 1)
                 new_x = bmv(F[t], xut)
                 if f is not None:
                     new_x += f
+            else:
+                new_x = dynamics(Variable(xt), Variable(ut)).data
             x.append(new_x)
+    x = torch.stack(x, dim=0)
     return x
 
 
-def get_cost(T, C, c, u, x_init=None, x=None, dynamics=None, F=None, f=None):
-    assert (dynamics is None) != (F is None)
+def get_cost(T, u, cost, dynamics=None, x_init=None, x=None):
+    assert x_init is not None or x is not None
 
-    C = get_data_maybe(C)
-    c = get_data_maybe(c)
+    if isinstance(cost, mpc.QuadCost):
+        C = get_data_maybe(cost.C)
+        c = get_data_maybe(cost.c)
 
     if x is None:
-        x = get_traj(T, u, x_init, dynamics, F, f)
+        x = get_traj(T, u, x_init, dynamics)
+
     objs = []
     for t in range(T):
         xt = x[t]
         ut = u[t]
         xut = torch.cat((xt, ut), 1)
-        obj = 0.5*bquad(xut, C[t]) + bdot(xut, c[t])
+        if isinstance(cost, mpc.QuadCost):
+            obj = 0.5*bquad(xut, C[t]) + bdot(xut, c[t])
+        else:
+            obj = cost(xut)
         objs.append(obj)
     objs = torch.stack(objs, dim=0)
     total_obj = torch.sum(objs, dim=0)
     return total_obj
+
+
+def detach_maybe(x):
+    if x is None:
+        return None
+    return x if not x.requires_grad else x.detach()
+
+
+def data_maybe(x):
+    if x is None:
+        return None
+    return x.data

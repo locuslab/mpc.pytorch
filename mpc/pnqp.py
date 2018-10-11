@@ -1,16 +1,11 @@
 import torch
 from . import util
 
-pnqp_I = None
-
 # @profile
 def pnqp(H, q, lower, upper, x_init=None, n_iter=20):
     GAMMA = 0.1
     n_batch, n, _ = H.size()
-
-    global pnqp_I
-    if pnqp_I is None or pnqp_I.size() != (n_batch, n, n) or pnqp_I.type() != H.type():
-        pnqp_I = 1e-6*torch.eye(n).type_as(H).unsqueeze(0).repeat(n_batch,1,1)
+    pnqp_I = 1e-11*torch.eye(n).type_as(H).expand_as(H)
 
 
     def obj(x):
@@ -56,8 +51,8 @@ def pnqp(H, q, lower, upper, x_init=None, n_iter=20):
             H_lu_ = H_.btrifact()
             dx = -g_.btrisolve(*H_lu_)
 
-        J = torch.norm(dx, 2, 1) >= 1e-7
-        m = sum(J.cpu()) # Number of active examples in the batch.
+        J = torch.norm(dx, 2, 1) >= 1e-4
+        m = J.sum().item() # Number of active examples in the batch.
         if m == 0:
             return x, H_ if n == 1 else H_lu_, If, i
 
@@ -81,5 +76,5 @@ def pnqp(H, q, lower, upper, x_init=None, n_iter=20):
         x = maybe_x
 
     # TODO: Maybe change this to a warning.
-    # print("pnqp warning: Did not converge")
+    print("[WARNING] pnqp warning: Did not converge")
     return x, H_ if n == 1 else H_lu_, If, i

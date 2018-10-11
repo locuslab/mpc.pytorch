@@ -18,7 +18,7 @@ sys.excepthook = ultratb.FormattedTB(mode='Verbose',
      color_scheme='Linux', call_pdb=1)
 
 from mpc import mpc, util, pnqp
-from mpc.mpc import GradMethods
+from mpc.mpc import GradMethods, QuadCost, LinDx
 from mpc.dynamics import NNDynamics, AffineDynamics
 
 def lqr_qp_cp(C, c, lower, upper):
@@ -127,23 +127,23 @@ def test_lqr_linear_unbounded():
 
     u_lqr = None
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        n_state, n_ctrl, T, x_init, u_lower, u_upper, u_lqr,
+        n_state, n_ctrl, T, u_lower, u_upper, u_lqr,
         lqr_iter=10,
         backprop=False,
         verbose=1,
-        exit_unconverged=False,
-    )(C, c, dynamics)
+        exit_unconverged=True,
+    )(x_init, QuadCost(C, c), dynamics)
     tau_lqr = torch.cat((x_lqr, u_lqr), 2)
     tau_lqr = util.get_data_maybe(tau_lqr)
     npt.assert_allclose(tau_cp, tau_lqr[:,0].numpy(), rtol=1e-3)
 
     u_lqr = None
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        n_state, n_ctrl, T, x_init, None, None, u_lqr,
+        n_state, n_ctrl, T, None, None, u_lqr,
         lqr_iter=10,
         backprop=False,
         exit_unconverged=False,
-    )(C, c, dynamics)
+    )(x_init, QuadCost(C, c), dynamics)
     tau_lqr = torch.cat((x_lqr, u_lqr), 2)
     tau_lqr = util.get_data_maybe(tau_lqr)
     npt.assert_allclose(tau_cp, tau_lqr[:,0].numpy(), rtol=1e-3)
@@ -184,11 +184,11 @@ def test_lqr_linear_bounded():
     dynamics = AffineDynamics(R[0,0], S[0,0], f[0,0])
 
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        n_state, n_ctrl, T, x_init, u_lower, u_upper,
+        n_state, n_ctrl, T, u_lower, u_upper,
         lqr_iter=20, verbose=1,
         backprop=False,
         exit_unconverged=False,
-    )(C, c, dynamics)
+    )(x_init, QuadCost(C, c), dynamics)
     tau_lqr = util.get_data_maybe(torch.cat((x_lqr, u_lqr), 2))
 
     npt.assert_allclose(tau_cp, tau_lqr[:,0].numpy(), rtol=1e-3)
@@ -229,12 +229,12 @@ def test_lqr_linear_bounded_delta():
 
     delta_u = 0.1
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        n_state, n_ctrl, T, x_init, u_lower, u_upper,
+        n_state, n_ctrl, T, u_lower, u_upper,
         lqr_iter=1, verbose=1,
         delta_u=delta_u,
         backprop=False,
         exit_unconverged=False,
-    )(C, c, dynamics)
+    )(x_init, QuadCost(C, c), dynamics)
 
     u_lqr = util.get_data_maybe(u_lqr)
     assert torch.abs(u_lqr).max() <= delta_u
@@ -280,20 +280,20 @@ def test_lqr_cuda_singleton():
 
     u_lqr = None
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        n_state, n_ctrl, T, x_init, u_lower, u_upper, u_lqr,
+        n_state, n_ctrl, T, u_lower, u_upper, u_lqr,
         lqr_iter=10,
         backprop=False,
-    )(C, c, dynamics)
+    )(x_init, QuadCost(C, c), dynamics)
     tau_lqr = torch.cat((x_lqr, u_lqr), 2)
     tau_lqr = util.get_data_maybe(torch.cat((x_lqr, u_lqr), 2))
     npt.assert_allclose(tau_cp, tau_lqr[:,0].cpu().numpy(), rtol=1e-3)
 
     u_lqr = None
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        n_state, n_ctrl, T, x_init, None, None, u_lqr,
+        n_state, n_ctrl, T, None, None, u_lqr,
         lqr_iter=10,
         backprop=False,
-    )(C, c, dynamics)
+    )(x_init, QuadCost(C, c), dynamics)
     tau_lqr = torch.cat((x_lqr, u_lqr), 2)
     tau_lqr = util.get_data_maybe(torch.cat((x_lqr, u_lqr), 2))
     npt.assert_allclose(tau_cp, tau_lqr[:,0].cpu().numpy(), rtol=1e-3)
@@ -326,14 +326,13 @@ def test_lqr_backward_cost_linear_dynamics_unconstrained():
 
         u_init = None
         x_lqr, u_lqr, objs_lqr = mpc.MPC(
-            n_state, n_ctrl, T, _x_init, _u_lower, _u_upper, u_init,
+            n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
             lqr_iter=40,
             verbose=1,
             exit_unconverged=False,
             backprop=False,
-            F=F,
             max_linesearch_iter=2,
-        )(_C, _c)
+        )(_x_init, QuadCost(_C, _c), LinDx(F, None))
         return util.get_data_maybe(u_lqr.view(-1)).numpy()
 
     def f_c(c_flat):
@@ -360,12 +359,11 @@ def test_lqr_backward_cost_linear_dynamics_unconstrained():
 
     u_init = None
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        n_state, n_ctrl, T, _x_init, _u_lower, _u_upper, u_init,
+        n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
         lqr_iter=20,
         verbose=1,
-        F=F,
         exit_unconverged=False,
-    )(_C, _c)
+    )(_x_init, QuadCost(_C, _c), LinDx(F, None))
     u_lqr = u_lqr.view(-1)
 
     du_dC = []
@@ -412,14 +410,13 @@ def test_lqr_backward_cost_linear_dynamics_constrained():
 
         u_init = None
         x_lqr, u_lqr, objs_lqr = mpc.MPC(
-            n_state, n_ctrl, T, _x_init, _u_lower, _u_upper, u_init,
+            n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
             lqr_iter=40,
             verbose=1,
             exit_unconverged=True,
             backprop=False,
-            F=F,
             max_linesearch_iter=2,
-        )(_C, _c)
+        )(_x_init, QuadCost(_C, _c), LinDx(F, None))
         return util.get_data_maybe(u_lqr.view(-1)).numpy()
 
     def f_c(c_flat):
@@ -452,11 +449,10 @@ def test_lqr_backward_cost_linear_dynamics_constrained():
 
     u_init = None
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        n_state, n_ctrl, T, _x_init, _u_lower, _u_upper, u_init,
+        n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
         lqr_iter=20,
         verbose=1,
-        F=F,
-    )(_C, _c)
+    )(_x_init, QuadCost(_C, _c), LinDx(F, None))
     u_lqr_flat = u_lqr.view(-1)
 
     du_dC = []
@@ -511,11 +507,10 @@ def test_lqr_backward_cost_affine_dynamics_module_constrained():
 
     u_init = None
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        n_state, n_ctrl, T, _x_init, _u_lower, _u_upper, u_init,
+        n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
         lqr_iter=20,
         verbose=1,
-        F=F,
-    )(_C, _c)
+    )(_x_init, QuadCost(_C, _c), LinDx(F, None))
     u_lqr_flat = u_lqr.view(-1)
 
     du_dF = []
@@ -526,10 +521,10 @@ def test_lqr_backward_cost_affine_dynamics_module_constrained():
 
     u_init = None
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        n_state, n_ctrl, T, _x_init, _u_lower, _u_upper, u_init,
+        n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
         lqr_iter=20,
         verbose=1,
-    )(_C, _c, dynamics)
+    )(_x_init, QuadCost(_C, _c), dynamics)
     u_lqr_flat = u_lqr.view(-1)
 
     du_dF_ = []
@@ -570,13 +565,13 @@ def test_lqr_backward_cost_nn_dynamics_module_constrained():
         # dynamics.A.data[:] = fc0b.view(n_state, n_state).data
         u_init = None
         x_lqr, u_lqr, objs_lqr = mpc.MPC(
-            n_state, n_ctrl, T, _x_init, _u_lower, _u_upper, u_init,
+            n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
             lqr_iter=40,
             verbose=-1,
             exit_unconverged=True,
             backprop=False,
             max_linesearch_iter=1,
-        )(_C, _c, dynamics)
+        )(_x_init, QuadCost(_C, _c), dynamics)
         return util.get_data_maybe(u_lqr.view(-1)).numpy()
 
     def f_c(c_flat):
@@ -605,12 +600,12 @@ def test_lqr_backward_cost_nn_dynamics_module_constrained():
 
     u_init = None
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        n_state, n_ctrl, T, _x_init, _u_lower, _u_upper, u_init,
+        n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
         lqr_iter=20,
         verbose=-1,
         max_linesearch_iter=1,
         grad_method=GradMethods.ANALYTIC,
-    )(_C, _c, dynamics)
+    )(_x_init, QuadCost(_C, _c), dynamics)
     u_lqr_flat = u_lqr.view(-1)
 
     du_dC = []
@@ -662,13 +657,12 @@ def test_lqr_linearization():
 
     u_init = None
     _lqr = mpc.MPC(
-        n_state, n_ctrl, T, _x_init, _u_lower, _u_upper, u_init,
+        n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
         grad_method=GradMethods.ANALYTIC,
     )
 
     u = torch.randn(T, n_batch, n_ctrl).type_as(_x_init.data)
     x = util.get_traj(T, u, x_init=_x_init, dynamics=dynamics)
-    x = torch.stack(x, 0)
     Fan, fan = _lqr.linearize_dynamics(x, u, dynamics, diff=False)
 
     _lqr.grad_method=GradMethods.AUTO_DIFF
@@ -708,18 +702,18 @@ def test_lqr_slew_rate():
     dynamics = AffineDynamics(R, S, f)
 
     x, u, objs = mpc.MPC(
-        n_state, n_ctrl, T, x_init,
+        n_state, n_ctrl, T,
         u_lower=None, u_upper=None, u_init=None,
         lqr_iter=10,
         backprop=False,
         verbose=1,
         exit_unconverged=False,
         eps=1e-4,
-    )(C, c, dynamics)
+    )(x_init, QuadCost(C, c), dynamics)
 
     # The solution should be the same when the slew rate approaches 0.
     x_slew_eps, u_slew_eps, objs_slew_eps = mpc.MPC(
-        n_state, n_ctrl, T, x_init,
+        n_state, n_ctrl, T,
         u_lower=None, u_upper=None, u_init=None,
         lqr_iter=10,
         backprop=False,
@@ -727,13 +721,13 @@ def test_lqr_slew_rate():
         exit_unconverged=False,
         eps=1e-4,
         slew_rate_penalty=1e-6,
-    )(C, c, dynamics)
+    )(x_init, QuadCost(C, c), dynamics)
 
     npt.assert_allclose(x.data.numpy(), x_slew_eps.data.numpy(), atol=1e-3)
     npt.assert_allclose(u.data.numpy(), u_slew_eps.data.numpy(), atol=1e-3)
 
     x_slew, u_slew, objs_slew= mpc.MPC(
-        n_state, n_ctrl, T, x_init,
+        n_state, n_ctrl, T,
         u_lower=None, u_upper=None, u_init=None,
         lqr_iter=10,
         backprop=False,
@@ -741,12 +735,12 @@ def test_lqr_slew_rate():
         exit_unconverged=False,
         eps=1e-4,
         slew_rate_penalty=1.,
-    )(C, c, dynamics)
+    )(x_init, QuadCost(C, c), dynamics)
 
     assert np.alltrue(objs < objs_slew)
 
-    d = torch.norm(u[:-1] - u[1:]).data[0]
-    d_slew = torch.norm(u_slew[:-1] - u_slew[1:]).data[0]
+    d = torch.norm(u[:-1] - u[1:]).item()
+    d_slew = torch.norm(u_slew[:-1] - u_slew[1:]).item()
     assert d_slew < d
 
 if __name__=='__main__':
