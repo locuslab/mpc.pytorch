@@ -13,10 +13,10 @@ import cvxpy as cp
 
 import numdifftools as nd
 
-import sys
-from IPython.core import ultratb
-sys.excepthook = ultratb.FormattedTB(mode='Verbose',
-     color_scheme='Linux', call_pdb=1)
+# import sys
+# from IPython.core import ultratb
+# sys.excepthook = ultratb.FormattedTB(mode='Verbose',
+#      color_scheme='Linux', call_pdb=1)
 
 from mpc import mpc, util, pnqp
 from mpc.mpc import GradMethods, QuadCost, LinDx
