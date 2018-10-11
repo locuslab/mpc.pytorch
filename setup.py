@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name='mpc',
-    version='0.0.1',
+    version='0.0.2',
     description="A fast and differentiable MPC solver for PyTorch.",
     author='Brandon Amos',
     author_email='brandon.amos.cs@gmail.com',
