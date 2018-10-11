@@ -347,7 +347,8 @@ class LQRStep(Function):
 
         i = 0
         while (current_cost is None or \
-               (old_cost is not None and np.any(current_cost > old_cost))) and \
+               (old_cost is not None and \
+                  np.any((current_cost > old_cost).numpy()))) and \
               i < self.max_linesearch_iter:
             new_u = []
             new_x = [x_init]
