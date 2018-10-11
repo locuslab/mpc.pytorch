@@ -1,0 +1,41 @@
+language: python
+python:
+- 3.5
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-4.8
+    - g++-4.8
+install:
+- sudo apt-get update
+- sudo apt-get install -qq git
+- if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh
+  -O miniconda.sh; else wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+  -O miniconda.sh; fi
+- bash miniconda.sh -b -p $HOME/miniconda
+- export PATH="$HOME/miniconda/bin:$PATH"
+- hash -r
+- conda config --set always_yes yes --set changeps1 no
+- conda update -q conda
+- conda info -a
+- conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION numpy scipy nose
+  pip
+- conda install -y numpy mkl setuptools cmake gcc cffi
+- conda install pytorch torchvision -c pytorch
+- source activate test-environment
+- pip install numdifftools cvxpy block
+- python setup.py install
+script:
+- nosetests -v -d tests/test_dynamics.py
+- nosetests -v -d tests/test_mpc.py
+
+matrix:
+  fast_finish: true
+  # include:
+  #   env: LINT_CHECK
+  #   python: '3.5'
+  #   addons: true
+  #   install: pip install flake8
+  #   script: flake8 --ignore=E402,E501
