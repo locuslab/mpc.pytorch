@@ -5,8 +5,6 @@ from torch.nn.parameter import Parameter
 
 import operator
 
-from . import mpc
-
 def jacobian(f, x, eps):
     if x.ndimension() == 2:
         assert x.size(0) == 1
@@ -101,7 +99,9 @@ def table_log(tag, d):
 
 
 def get_traj(T, u, x_init, dynamics):
-    if isinstance(dynamics, mpc.LinDx):
+    from .mpc import QuadCost, LinDx # TODO: This is messy.
+
+    if isinstance(dynamics, LinDx):
         F = get_data_maybe(dynamics.F)
         f = get_data_maybe(dynamics.f)
 
@@ -111,7 +111,7 @@ def get_traj(T, u, x_init, dynamics):
         ut = get_data_maybe(u[t])
         if t < T-1:
             # new_x = f(Variable(xt), Variable(ut)).data
-            if isinstance(dynamics, mpc.LinDx):
+            if isinstance(dynamics, LinDx):
                 xut = torch.cat((xt, ut), 1)
                 new_x = bmv(F[t], xut)
                 if f is not None:
@@ -124,9 +124,11 @@ def get_traj(T, u, x_init, dynamics):
 
 
 def get_cost(T, u, cost, dynamics=None, x_init=None, x=None):
+    from .mpc import QuadCost, LinDx # TODO: This is messy.
+
     assert x_init is not None or x is not None
 
-    if isinstance(cost, mpc.QuadCost):
+    if isinstance(cost, QuadCost):
         C = get_data_maybe(cost.C)
         c = get_data_maybe(cost.c)
 
@@ -138,7 +140,7 @@ def get_cost(T, u, cost, dynamics=None, x_init=None, x=None):
         xt = x[t]
         ut = u[t]
         xut = torch.cat((xt, ut), 1)
-        if isinstance(cost, mpc.QuadCost):
+        if isinstance(cost, QuadCost):
             obj = 0.5*bquad(xut, C[t]) + bdot(xut, c[t])
         else:
             obj = cost(xut)
