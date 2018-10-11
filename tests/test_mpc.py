@@ -738,7 +738,7 @@ def test_lqr_slew_rate():
         slew_rate_penalty=1.,
     )(x_init, QuadCost(C, c), dynamics)
 
-    assert np.alltrue(objs < objs_slew)
+    assert np.alltrue((objs < objs_slew).numpy())
 
     d = torch.norm(u[:-1] - u[1:]).item()
     d_slew = torch.norm(u_slew[:-1] - u_slew[1:]).item()
