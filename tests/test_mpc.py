@@ -7,6 +7,7 @@ from torch.nn.parameter import Parameter
 import numpy as np
 import numpy.random as npr
 import numpy.testing as npt
+from numpy.testing import decorators
 
 import cvxpy as cp
 
