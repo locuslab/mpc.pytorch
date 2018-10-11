@@ -7,7 +7,7 @@ from torch.nn.parameter import Parameter
 from . import util
 
 ACTS = {
-    'sigmoid': F.sigmoid,
+    'sigmoid': torch.sigmoid,
     'relu': F.relu,
     'elu': F.elu,
 }
