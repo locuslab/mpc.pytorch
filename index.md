@@ -152,7 +152,7 @@ pip install mpc
 {% highlight Python %}
 import torch
 from torch.autograd import Variable
-from mpc import mpc
+from mpc import mpc, QuadCost, LinDx
 
 torch.manual_seed(0)
 
@@ -182,15 +182,13 @@ x_lqr, u_lqr, objs_lqr = mpc.MPC(
     n_state=n_state,
     n_ctrl=n_ctrl,
     T=T,
-    x_init=x_init,
     u_lower=u_lower, 
     u_upper=u_upper,
     lqr_iter=20,
     verbose=1,
     backprop=False,
     exit_unconverged=False,
-    F=F,
-)(C, c)
+)(x_init, QuadCost(C, c), LinDx(F, None))
 {% endhighlight %}
 
 # Example: Pendulum Control
