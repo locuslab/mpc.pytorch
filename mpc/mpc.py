@@ -21,6 +21,10 @@ from .dynamics import CtrlPassthroughDynamics
 QuadCost = namedtuple('QuadCost', 'C c')
 LinDx = namedtuple('LinDx', 'F f')
 
+# https://stackoverflow.com/questions/11351032
+QuadCost.__new__.__defaults__ = (None,) * len(QuadCost._fields)
+LinDx.__new__.__defaults__ = (None,) * len(LinDx._fields)
+
 
 class GradMethods(Enum):
     AUTO_DIFF = 1

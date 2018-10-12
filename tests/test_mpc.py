@@ -333,7 +333,7 @@ def test_lqr_backward_cost_linear_dynamics_unconstrained():
             exit_unconverged=False,
             backprop=False,
             max_linesearch_iter=2,
-        )(_x_init, QuadCost(_C, _c), LinDx(F, None))
+        )(_x_init, QuadCost(_C, _c), LinDx(F))
         return util.get_data_maybe(u_lqr.view(-1)).numpy()
 
     def f_c(c_flat):
@@ -364,7 +364,7 @@ def test_lqr_backward_cost_linear_dynamics_unconstrained():
         lqr_iter=20,
         verbose=1,
         exit_unconverged=False,
-    )(_x_init, QuadCost(_C, _c), LinDx(F, None))
+    )(_x_init, QuadCost(_C, _c), LinDx(F))
     u_lqr = u_lqr.view(-1)
 
     du_dC = []
@@ -417,7 +417,7 @@ def test_lqr_backward_cost_linear_dynamics_constrained():
             exit_unconverged=True,
             backprop=False,
             max_linesearch_iter=2,
-        )(_x_init, QuadCost(_C, _c), LinDx(F, None))
+        )(_x_init, QuadCost(_C, _c), LinDx(F))
         return util.get_data_maybe(u_lqr.view(-1)).numpy()
 
     def f_c(c_flat):
@@ -453,7 +453,7 @@ def test_lqr_backward_cost_linear_dynamics_constrained():
         n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
         lqr_iter=20,
         verbose=1,
-    )(_x_init, QuadCost(_C, _c), LinDx(F, None))
+    )(_x_init, QuadCost(_C, _c), LinDx(F))
     u_lqr_flat = u_lqr.view(-1)
 
     du_dC = []
@@ -511,7 +511,7 @@ def test_lqr_backward_cost_affine_dynamics_module_constrained():
         n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
         lqr_iter=20,
         verbose=1,
-    )(_x_init, QuadCost(_C, _c), LinDx(F, None))
+    )(_x_init, QuadCost(_C, _c), LinDx(F))
     u_lqr_flat = u_lqr.view(-1)
 
     du_dF = []
