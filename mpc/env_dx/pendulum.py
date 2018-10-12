@@ -6,7 +6,7 @@ from torch.nn.parameter import Parameter
 
 import numpy as np
 
-from empc import util
+from mpc import util
 
 import os
 
