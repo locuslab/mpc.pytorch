@@ -141,8 +141,15 @@ class MPC(Module):
         self.n_state = n_state
         self.n_ctrl = n_ctrl
         self.T = T
-        self.u_lower = util.detach_maybe(u_lower)
-        self.u_upper = util.detach_maybe(u_upper)
+        self.u_lower = u_lower
+        self.u_upper = u_upper
+
+        if not isinstance(u_lower, float):
+            self.u_lower = util.detach_maybe(self.u_lower)
+
+        if not isinstance(u_upper, float):
+            self.u_upper = util.detach_maybe(self.u_upper)
+
         self.u_zero_I = util.detach_maybe(u_zero_I)
         self.u_init = util.detach_maybe(u_init)
         self.lqr_iter = lqr_iter
@@ -330,16 +337,15 @@ class MPC(Module):
             _n_state = nsc
             _nsc = _n_state + self.n_ctrl
             n_batch = C.size(1)
-            with torch.no_grad():
-                _C = torch.zeros(self.T, n_batch, _nsc, _nsc).type_as(C)
-                half_gamI = self.slew_rate_penalty*torch.eye(
-                    self.n_ctrl).unsqueeze(0).unsqueeze(0).repeat(self.T, n_batch, 1, 1)
-                _C[:,:,:self.n_ctrl,:self.n_ctrl] = half_gamI
-                _C[:,:,-self.n_ctrl:,:self.n_ctrl] = -half_gamI
-                _C[:,:,:self.n_ctrl,-self.n_ctrl:] = -half_gamI
-                _C[:,:,-self.n_ctrl:,-self.n_ctrl:] = half_gamI
-                slew_C = _C.clone()
-                _C = _C + torch.nn.ZeroPad2d((self.n_ctrl, 0, self.n_ctrl, 0))(C)
+            _C = torch.zeros(self.T, n_batch, _nsc, _nsc).type_as(C)
+            half_gamI = self.slew_rate_penalty*torch.eye(
+                self.n_ctrl).unsqueeze(0).unsqueeze(0).repeat(self.T, n_batch, 1, 1)
+            _C[:,:,:self.n_ctrl,:self.n_ctrl] = half_gamI
+            _C[:,:,-self.n_ctrl:,:self.n_ctrl] = -half_gamI
+            _C[:,:,:self.n_ctrl,-self.n_ctrl:] = -half_gamI
+            _C[:,:,-self.n_ctrl:,-self.n_ctrl:] = half_gamI
+            slew_C = _C.clone()
+            _C = _C + torch.nn.ZeroPad2d((self.n_ctrl, 0, self.n_ctrl, 0))(C)
 
             _c = torch.cat((
                 torch.zeros(self.T, n_batch, self.n_ctrl).type_as(c),c), 2)

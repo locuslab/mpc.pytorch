@@ -628,6 +628,101 @@ def test_lqr_backward_cost_nn_dynamics_module_constrained():
     npt.assert_allclose(du_dfc0b_fd, du_dfc0b, atol=1e-3)
 
 
+def test_lqr_backward_cost_nn_dynamics_module_constrained_slew():
+    npr.seed(0)
+    torch.manual_seed(0)
+    n_batch, n_state, n_ctrl, T = 1, 2, 2, 2
+    hidden_sizes = [10, 10]
+    n_sc = n_state + n_ctrl
+
+    C = 10.*npr.randn(T, n_batch, n_sc, n_sc).astype(np.float64)
+    C = np.matmul(C.transpose(0, 1, 3, 2), C)
+    c = 10.*npr.randn(T, n_batch, n_sc).astype(np.float64)
+
+    x_init = npr.randn(n_batch, n_state).astype(np.float64)
+    beta = 1.
+    u_lower = -beta*np.ones((T, n_batch, n_ctrl)).astype(np.float64)
+    u_upper = beta*np.ones((T, n_batch, n_ctrl)).astype(np.float64)
+
+    dynamics = NNDynamics(
+        n_state, n_ctrl, hidden_sizes, activation='sigmoid').double()
+    fc0b = dynamics.fcs[0].bias.view(-1).data.numpy().copy()
+
+    def forward_numpy(C, c, x_init, u_lower, u_upper, fc0b):
+        _C, _c, _x_init, _u_lower, _u_upper, fc0b = [
+            Variable(torch.Tensor(x).double(), requires_grad=True)
+            if x is not None else None
+            for x in [C, c, x_init, u_lower, u_upper, fc0b]
+        ]
+
+        dynamics.fcs[0].bias.data[:] = fc0b.data
+        # dynamics.A.data[:] = fc0b.view(n_state, n_state).data
+        u_init = None
+        x_lqr, u_lqr, objs_lqr = mpc.MPC(
+            n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
+            lqr_iter=40,
+            verbose=-1,
+            exit_unconverged=True,
+            backprop=False,
+            max_linesearch_iter=1,
+            slew_rate_penalty=1.0,
+        )(_x_init, QuadCost(_C, _c), dynamics)
+        return util.get_data_maybe(u_lqr.view(-1)).numpy()
+
+    def f_c(c_flat):
+        c_ = c_flat.reshape(T, n_batch, n_sc)
+        return forward_numpy(C, c_, x_init, u_lower, u_upper, fc0b)
+
+    def f_fc0b(fc0b):
+        return forward_numpy(C, c, x_init, u_lower, u_upper, fc0b)
+
+    u = forward_numpy(C, c, x_init, u_lower, u_upper, fc0b)
+
+    # Make sure the solution is strictly partially on the boundary.
+    assert np.any(u == u_lower.reshape(-1)) or np.any(u == u_upper.reshape(-1))
+    assert np.any((u != u_lower.reshape(-1)) & (u != u_upper.reshape(-1)))
+
+    du_dc_fd = nd.Jacobian(f_c)(c.reshape(-1))
+    du_dfc0b_fd = nd.Jacobian(f_fc0b)(fc0b.reshape(-1))
+
+    dynamics.fcs[0].bias.data = torch.DoubleTensor(fc0b).clone()
+
+    _C, _c, _x_init, _u_lower, _u_upper, fc0b = [
+        Variable(torch.Tensor(x).double(), requires_grad=True)
+        if x is not None else None
+        for x in [C, c, x_init, u_lower, u_upper, fc0b]
+    ]
+
+    u_init = None
+    x_lqr, u_lqr, objs_lqr = mpc.MPC(
+        n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
+        lqr_iter=20,
+        verbose=-1,
+        max_linesearch_iter=1,
+        grad_method=GradMethods.ANALYTIC,
+        slew_rate_penalty=1.0,
+    )(_x_init, QuadCost(_C, _c), dynamics)
+    u_lqr_flat = u_lqr.view(-1)
+
+    du_dC = []
+    du_dc = []
+    du_dfc0b = []
+    for i in range(len(u_lqr_flat)):
+        dCi = grad(u_lqr_flat[i], [_C], create_graph=True)[0].contiguous().view(-1)
+        dci = grad(u_lqr_flat[i], [_c], create_graph=True)[0].contiguous().view(-1)
+        dfc0b = grad(u_lqr_flat[i], [dynamics.fcs[0].bias],
+                     create_graph=True)[0].view(-1)
+        du_dC.append(dCi)
+        du_dc.append(dci)
+        du_dfc0b.append(dfc0b)
+    du_dC = torch.stack(du_dC).data.numpy()
+    du_dc = torch.stack(du_dc).data.numpy()
+    du_dfc0b = torch.stack(du_dfc0b).data.numpy()
+
+    npt.assert_allclose(du_dc_fd, du_dc, atol=1e-3)
+    npt.assert_allclose(du_dfc0b_fd, du_dfc0b, atol=1e-3)
+
+
 def test_lqr_linearization():
     npr.seed(0)
     torch.manual_seed(0)
@@ -754,5 +849,6 @@ if __name__=='__main__':
     test_lqr_backward_cost_linear_dynamics_constrained()
     test_lqr_backward_cost_affine_dynamics_module_constrained()
     test_lqr_backward_cost_nn_dynamics_module_constrained()
+    test_lqr_backward_cost_nn_dynamics_module_constrained_slew()
     test_lqr_linearization()
     test_lqr_slew_rate()
