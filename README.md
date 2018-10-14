@@ -20,7 +20,5 @@ and
 ---
 
 + [More details are available on our project website here](http://locuslab.github.io/mpc.pytorch)
-+ This code currently only supports PyTorch 0.3 and an update
-  to a newer version of PyTorch is coming soon.
 + This is still an early alpha release, be prepared for some rough
   spots and get in touch if you have any questions!
