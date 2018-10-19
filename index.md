@@ -149,10 +149,13 @@ pip install mpc
 
 # Example: Time-Varying Linear Control
 
++ [Notebook](https://github.com/locuslab/mpc.pytorch/blob/master/examples/Time%20Varying%20Linear-Quadratic%20Control.ipynb)
+
 {% highlight Python %}
 import torch
 from torch.autograd import Variable
-from mpc import mpc, QuadCost, LinDx
+from mpc import mpc
+from mpc.mpc import QuadCost, LinDx
 
 torch.manual_seed(0)
 
@@ -188,10 +191,14 @@ x_lqr, u_lqr, objs_lqr = mpc.MPC(
     verbose=1,
     backprop=False,
     exit_unconverged=False,
-)(x_init, QuadCost(C, c), LinDx(F, None))
+)(x_init, QuadCost(C, c), LinDx(F))
 {% endhighlight %}
 
 # Example: Pendulum Control
+
+Coming soon.
+
+# Example: Arbitrary Gym Environment Control
 
 Coming soon.
 
