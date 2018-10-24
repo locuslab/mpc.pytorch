@@ -423,8 +423,8 @@ class MPC(Module):
             tau = torch.cat((x, u), dim=2).data
             tau = Variable(tau, requires_grad=True)
             if self.slew_rate_penalty is not None:
-                differences = tau[1:,:,-2] - tau[:-1,:,-2]
-                slew_penalty = (self.slew_rate_penalty * differences.pow(2))
+                differences = tau[1:, :, -self.n_ctrl:] - tau[:-1, :, -self.n_ctrl:]
+                slew_penalty = (self.slew_rate_penalty * differences.pow(2)).sum(-1)
             costs = list()
             hessians = list()
             grads = list()
