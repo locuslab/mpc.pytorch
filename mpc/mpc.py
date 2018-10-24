@@ -178,7 +178,7 @@ class MPC(Module):
         assert isinstance(cost, QuadCost) or \
             isinstance(cost, Module) or isinstance(cost, Function)
         assert isinstance(dx, LinDx) or \
-            isinstance(dx, Module) or isinstance(dx, Fundction)
+            isinstance(dx, Module) or isinstance(dx, Function)
 
         if isinstance(dx, LinDx):
             assert dx.f is None, 'Untested but should work'
@@ -309,7 +309,7 @@ class MPC(Module):
 
     def solve_lqr_subproblem(self, x_init, C, c, F, f, cost, dynamics, x, u,
                              no_op_forward=False):
-        if self.slew_rate_penalty is None:
+        if self.slew_rate_penalty is None or isinstance(cost, Module):
             _lqr = LQRStep(
                 n_state=self.n_state,
                 n_ctrl=self.n_ctrl,
@@ -422,12 +422,18 @@ class MPC(Module):
         with torch.enable_grad():
             tau = torch.cat((x, u), dim=2).data
             tau = Variable(tau, requires_grad=True)
+            if self.slew_rate_penalty is not None:
+                differences = tau[1:,:,-2] - tau[:-1,:,-2]
+                slew_penalty = (self.slew_rate_penalty * differences.pow(2))
             costs = list()
             hessians = list()
             grads = list()
             for t in range(tau.shape[0]):
                 tau_t = tau[t]
-                cost = Cf(tau_t)
+                if self.slew_rate_penalty is not None:
+                    cost = Cf(tau_t) + (slew_penalty[t-1] if t > 0 else 0)
+                else:
+                    cost = Cf(tau_t)
                 grad = torch.autograd.grad(cost.sum(), tau_t,
                                            retain_graph=True,
                                            create_graph=True)[0]

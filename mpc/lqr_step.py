@@ -260,7 +260,7 @@ class LQRStep(Function):
                 else:
                     if self.u_zero_I is None:
                         Qt_uu_inv = [
-                            torch.inverse(Qt_uu[i]) for i in range(Qt_uu.shape[0])
+                            torch.pinverse(Qt_uu[i]) for i in range(Qt_uu.shape[0])
                         ]
                         Qt_uu_inv = torch.stack(Qt_uu_inv)
                         Kt = -Qt_uu_inv.bmm(Qt_ux)
@@ -348,7 +348,7 @@ class LQRStep(Function):
         i = 0
         while (current_cost is None or \
                (old_cost is not None and \
-                  np.any((current_cost > old_cost).numpy()))) and \
+                  torch.any((current_cost > old_cost)).cpu().item() == 1)) and \
               i < self.max_linesearch_iter:
             new_u = []
             new_x = [x_init]
