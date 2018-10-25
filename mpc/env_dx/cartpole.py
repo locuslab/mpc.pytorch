@@ -69,7 +69,7 @@ class CartpoleDx(nn.Module):
 
         if state.is_cuda and not self.params.is_cuda:
             self.params = self.params.cuda()
-        gravity, masscart, masspole, length = torch.unbind(self.params.data)
+        gravity, masscart, masspole, length = torch.unbind(self.params)
         total_mass = masspole + masscart
         polemass_length = masspole * length
 

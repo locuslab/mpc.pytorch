@@ -16,19 +16,26 @@ import matplotlib.pyplot as plt
 plt.style.use('bmh')
 
 class PendulumDx(nn.Module):
-    def __init__(self, params=None):
+    def __init__(self, params=None, simple=True):
         super().__init__()
+        self.simple = simple
+
         self.max_torque = 2.0
         self.dt = 0.05
         self.n_state = 3
         self.n_ctrl = 1
 
         if params is None:
-            # g, m, l
-            self.params = Variable(torch.Tensor((10., 1., 1.)))
+            if simple:
+                # gravity (g), mass (m), length (l)
+                self.params = Variable(torch.Tensor((10., 1., 1.)))
+            else:
+                # gravity (g), mass (m), length (l), damping (d), gravity bias (b)
+                self.params = Variable(torch.Tensor((10., 1., 1., 0., 0.)))
         else:
             self.params = params
-        assert len(self.params) == 3
+
+        assert len(self.params) == 3 if simple else 5
 
         self.goal_state = torch.Tensor([1., 0., 0.])
         self.goal_weights = torch.Tensor([1., 1., 0.1])
@@ -46,14 +53,29 @@ class PendulumDx(nn.Module):
             x = x.unsqueeze(0)
             u = u.unsqueeze(0)
 
+        assert x.ndimension() == 2
+        assert x.shape[0] == u.shape[0]
+        assert x.shape[1] == 3
+        assert u.shape[1] == 1
+        assert u.ndimension() == 2
+
         if x.is_cuda and not self.params.is_cuda:
             self.params = self.params.cuda()
-        g, m, l = torch.unbind(self.params)
+
+        if not hasattr(self, 'simple') or self.simple:
+            g, m, l = torch.unbind(self.params)
+        else:
+            g, m, l, d, b = torch.unbind(self.params)
 
         u = torch.clamp(u, -self.max_torque, self.max_torque)[:,0]
         cos_th, sin_th, dth = torch.unbind(x, dim=1)
         th = torch.atan2(sin_th, cos_th)
-        newdth = dth + self.dt*(-3.*g/(2.*l) * (-sin_th) + 3. / (m*l**2)*u)
+        if not hasattr(self, 'simple') or self.simple:
+            newdth = dth + self.dt*(-3.*g/(2.*l) * (-sin_th) + 3. * u / (m*l**2))
+        else:
+            sin_th_bias = torch.sin(th + b)
+            newdth = dth + self.dt*(
+                -3.*g/(2.*l) * (-sin_th_bias) + 3. * u / (m*l**2) - d*th)
         newth = th + newdth*self.dt
         state = torch.stack((torch.cos(newth), torch.sin(newth), newdth), dim=1)
 
@@ -61,17 +83,21 @@ class PendulumDx(nn.Module):
             state = state.squeeze(0)
         return state
 
-    def get_frame(self, x):
+    def get_frame(self, x, ax=None):
         x = util.get_data_maybe(x.view(-1))
         assert len(x) == 3
-        g, m, l = torch.unbind(self.params)
-        l = l.data[0]
+        l = self.params[2].item()
 
         cos_th, sin_th, dth = torch.unbind(x)
         th = np.arctan2(sin_th, cos_th)
         x = sin_th*l
         y = cos_th*l
-        fig, ax = plt.subplots(figsize=(6,6))
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6,6))
+        else:
+            fig = ax.get_figure()
+
         ax.plot((0,x), (0, y), color='k')
         ax.set_xlim((-l*1.2, l*1.2))
         ax.set_ylim((-l*1.2, l*1.2))
