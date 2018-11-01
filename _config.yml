@@ -11,7 +11,7 @@ description: |
   <a href="https://zicokolter.com">J. Zico Kolter</a>.
   For more context and details, see our
   <a href="https://arxiv.org/abs/1703.00443">ICML 2017 paper on OptNet</a>
-  and our (forthcoming) NIPS 2018 paper on differentiable MPC.
+  and our <a href="https://arxiv.org/abs/1810.13400">NIPS 2018 paper on differentiable MPC</a>.
 github:
   is_project_page: True
   repository_url: 'https://github.com/locuslab/mpc.pytorch'
