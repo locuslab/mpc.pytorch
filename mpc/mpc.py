@@ -432,6 +432,12 @@ class MPC(Module):
             tau = torch.cat((x, u), dim=2).data
             tau = Variable(tau, requires_grad=True)
             if self.slew_rate_penalty is not None:
+                print("""
+MPC Error: Using a non-convex cost with a slew rate penalty is not yet implemented.
+The current implementation does not correctly do a line search.
+More details: https://github.com/locuslab/mpc.pytorch/issues/12
+""")
+                sys.exit(-1)
                 differences = tau[1:, :, -self.n_ctrl:] - tau[:-1, :, -self.n_ctrl:]
                 slew_penalty = (self.slew_rate_penalty * differences.pow(2)).sum(-1)
             costs = list()
