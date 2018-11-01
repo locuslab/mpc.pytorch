@@ -78,14 +78,12 @@ class MPC(Module):
         n_state, n_ctrl, T
 
     Optional Args:
-        TODO: Finish writing this.
         u_lower, u_upper: The lower- and upper-bounds on the controls.
             These can either be floats or shaped as [T, n_batch, n_ctrl]
-            TODO: Better support automatic expansion of these.
         u_init: The initial control sequence, useful for warm-starting:
             [T, n_batch, n_ctrl]
         lqr_iter: The number of LQR iterations to perform.
-        grad_method: The method to compute the Jacobian of the dynamics function.
+        grad_method: The method to compute the Jacobian of the dynamics.
             GradMethods.ANALYTIC: Use a manually-defined Jacobian.
                 + Fast and accurate, use this if possible
             GradMethods.AUTO_DIFF: Use PyTorch's autograd.
@@ -100,15 +98,26 @@ class MPC(Module):
             1+: Detailed iteration info
         eps: Termination threshold, on the norm of the full control
              step (without line search)
+        back_eps: `eps` value to use in the backwards pass.
         n_batch: May be necessary for now if it can't be inferred.
                  TODO: Infer, potentially remove this.
-        max_linesearch_iter: Can be used to disable the line search
+        linesearch_decay (float): Multiplicative decay factor for the
+            line search.
+        max_linesearch_iter (int): Can be used to disable the line search
             if 1 is used for some problems the line search can
             be harmful.
         exit_unconverged: Assert False if a fixed point is not reached.
-            TODO: Potentially remove this
+        detach_unconverged: Detach examples from the graph that do
+            not hit a fixed point so they are not differentiated through.
         backprop: Allow the solver to be differentiated through.
-            TODO: Potentially remove this
+        slew_rate_penalty (float): Penalty term applied to
+            ||u_t - u_{t+1}||_2^2 in the objective.
+        prev_ctrl: The previous nominal control sequence to initialize
+            the solver with.
+        not_improved_lim: The number of iterations to allow that don't
+            improve the objective before returning early.
+        best_cost_eps: Absolute threshold for the best cost
+            to be updated.
     """
 
     def __init__(
