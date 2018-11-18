@@ -198,13 +198,34 @@ class MPC(Module):
         elif isinstance(cost, QuadCost) and cost.C.ndimension() == 4:
             n_batch = cost.C.size(1)
         else:
-            assert False, 'Could not infer batch size, pass in as n_batch'
+            print('MPC Error: Could not infer batch size, pass in as n_batch')
+            sys.exit(-1)
 
-        # if C.ndimension() == 3:
-        #     C = C.unsqueeze(1).expand(
-        #         self.T, n_batch, self.n_state+self.n_ctrl, -1)
         # if c.ndimension() == 2:
         #     c = c.unsqueeze(1).expand(self.T, n_batch, -1)
+
+        if isinstance(cost, QuadCost):
+            C, c = cost
+            if C.ndimension() == 2:
+                # Add the time and batch dimensions.
+                C = C.unsqueeze(0).unsqueeze(0).expand(
+                    self.T, n_batch, self.n_state+self.n_ctrl, -1)
+            elif C.ndimension() == 3:
+                # Add the batch dimension.
+                C = C.unsqueeze(1).expand(
+                    self.T, n_batch, self.n_state+self.n_ctrl, -1)
+
+            if c.ndimension() == 1:
+                # Add the time and batch dimensions.
+                c = c.unsqueeze(0).unsqueeze(0).expand(self.T, n_batch, -1)
+            elif c.ndimension() == 2:
+                # Add the batch dimension.
+                c = c.unsqueeze(1).expand(self.T, n_batch, -1)
+
+            if C.ndimension() != 4 or c.ndimension() != 3:
+                print('MPC Error: Unexpected QuadCost shape.')
+                sys.exit(-1)
+            cost = QuadCost(C, c)
 
         assert x_init.ndimension() == 2 and x_init.size(0) == n_batch
 

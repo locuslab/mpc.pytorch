@@ -28,11 +28,12 @@ def expandParam(X, n_batch, nDim):
 
 
 def bdiag(d):
+    assert d.ndimension() == 2
     nBatch, sz = d.size()
     dtype = d.type() if not isinstance(d, Variable) else d.data.type()
     D = torch.zeros(nBatch, sz, sz).type(dtype)
     I = torch.eye(sz).repeat(nBatch, 1, 1).type(dtype).byte()
-    D[I] = d.squeeze()
+    D[I] = d.view(-1)
     return D
 
 
