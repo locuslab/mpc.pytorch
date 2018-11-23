@@ -13,12 +13,11 @@ import time
 from . import util, mpc
 from .pnqp import pnqp
 
-LqrBackOut = namedtuple('lqrBackOut', 'Ks ks n_total_qp_iter')
+LqrBackOut = namedtuple('lqrBackOut', 'n_total_qp_iter')
 LqrForOut = namedtuple(
     'lqrForOut',
-    'new_x new_u objs full_du_norm alpha_du_norm mean_alphas costs'
+    'objs full_du_norm alpha_du_norm mean_alphas costs'
 )
-LqrForOutDiff = namedtuple('lqrForOutDiff', 'new_x new_u')
 
 
 class LQRStep(Function):
@@ -89,9 +88,9 @@ class LQRStep(Function):
 
     # @profile
     def forward(self, x_init, C, c, F, f=None):
-        self.save_for_backward(x_init, C, c, F, f)
-
         if self.no_op_forward:
+            self.save_for_backward(
+                x_init, C, c, F, f, self.current_x, self.current_u)
             return self.current_x, self.current_u
 
         if self.delta_space:
@@ -110,22 +109,16 @@ class LQRStep(Function):
         else:
             assert False
 
-        self.back_out = self.lqr_backward(C, c_back, F, f_back)
-        self.for_out = self.lqr_forward(
-            x_init, C, c, F, f, self.back_out.Ks, self.back_out.ks)
+        Ks, ks, self.back_out = self.lqr_backward(C, c_back, F, f_back)
+        new_x, new_u, self.for_out = self.lqr_forward(
+            x_init, C, c, F, f, Ks, ks)
+        self.save_for_backward(x_init, C, c, F, f, new_x, new_u)
 
-        return self.for_out.new_x, self.for_out.new_u
+        return new_x, new_u
 
     def backward(self, dl_dx, dl_du):
         start = time.time()
-        x_init, C, c, F, f = self.saved_tensors
-
-        if self.no_op_forward:
-            new_x = self.current_x
-            new_u = self.current_u
-        else:
-            new_x = self.for_out.new_x
-            new_u = self.for_out.new_u
+        x_init, C, c, F, f, new_x, new_u = self.saved_tensors
 
         r = []
         for t in range(self.T):
@@ -330,7 +323,7 @@ class LQRStep(Function):
                 Kt_T.bmm(qt_u.unsqueeze(2)).squeeze(2) + \
                 Kt_T.bmm(Qt_uu).bmm(kt.unsqueeze(2)).squeeze(2)
 
-        return LqrBackOut(Ks=Ks, ks=ks, n_total_qp_iter=n_total_qp_iter)
+        return Ks, ks, LqrBackOut(n_total_qp_iter=n_total_qp_iter)
 
 
     # @profile
@@ -425,8 +418,8 @@ class LQRStep(Function):
         alpha_du_norm = (u-new_u).transpose(1,2).contiguous().view(
             n_batch, -1).norm(2, 1)
 
-        return LqrForOut(
-            new_x, new_u, objs, full_du_norm,
+        return new_x, new_u, LqrForOut(
+            objs, full_du_norm,
             alpha_du_norm,
             torch.mean(alphas),
             current_cost
