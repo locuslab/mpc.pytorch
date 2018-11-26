@@ -25,7 +25,7 @@ from mpc.dynamics import NNDynamics, AffineDynamics
 def lqr_qp_cp(C, c, lower, upper):
     n = c.shape[0]
     x = cp.Variable(n)
-    obj = 0.5*cp.quad_form(x, C) + cp.sum_entries(cp.mul_elemwise(c, x))
+    obj = 0.5*cp.quad_form(x, C) + cp.sum(cp.multiply(c, x))
     cons = [lower <= x, x <= upper]
     prob = cp.Problem(cp.Minimize(obj), cons)
     prob.solve()
@@ -39,7 +39,7 @@ def lqr_cp(C, c, F, f, x_init, T, n_state, n_ctrl, u_lower, u_upper):
                              x_0 = x_init
                              u_lower <= u <= u_upper
     """
-    tau = cp.Variable(n_state+n_ctrl, T)
+    tau = cp.Variable((n_state+n_ctrl, T))
     assert (u_lower is None) == (u_upper is None)
 
     objs = []
@@ -50,7 +50,7 @@ def lqr_cp(C, c, F, f, x_init, T, n_state, n_ctrl, u_lower, u_upper):
         xt = tau[:n_state,t]
         ut = tau[n_state:,t]
         objs.append(0.5*cp.quad_form(tau[:,t], C[t]) +
-                    cp.sum_entries(cp.mul_elemwise(c[t], tau[:,t])))
+                    cp.sum(cp.multiply(c[t], tau[:,t])))
         if u_lower is not None:
             cons += [u_lower[t] <= ut, ut <= u_upper[t]]
         if t+1 < T:
@@ -85,8 +85,8 @@ def test_lqr_qp():
     t = pnqp.pnqp(C, c, lower, upper)
     opt_pnqp = t[0]
 
-    npt.assert_allclose(opt_cp0[:,0], opt_pnqp[0].numpy(), rtol=1e-3)
-    npt.assert_allclose(opt_cp1[:,0], opt_pnqp[1].numpy(), rtol=1e-3)
+    npt.assert_allclose(opt_cp0, opt_pnqp[0].numpy(), rtol=1e-3)
+    npt.assert_allclose(opt_cp1, opt_pnqp[1].numpy(), rtol=1e-3)
 
 
 def test_lqr_linear_unbounded():
