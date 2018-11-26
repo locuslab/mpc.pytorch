@@ -201,6 +201,7 @@ class MPC(Module):
             print('MPC Error: Could not infer batch size, pass in as n_batch')
             sys.exit(-1)
 
+
         # if c.ndimension() == 2:
         #     c = c.unsqueeze(1).expand(self.T, n_batch, -1)
 
@@ -302,6 +303,8 @@ class MPC(Module):
             if max(for_out.full_du_norm) < self.eps or \
                n_not_improved > self.not_improved_lim:
                 break
+
+
         x = torch.cat(best['x'], dim=1)
         u = torch.cat(best['u'], dim=1)
         full_du_norm = best['full_du_norm']
@@ -464,21 +467,21 @@ More details: https://github.com/locuslab/mpc.pytorch/issues/12
             costs = list()
             hessians = list()
             grads = list()
-            for t in range(tau.shape[0]):
+            for t in range(self.T):
                 tau_t = tau[t]
                 if self.slew_rate_penalty is not None:
                     cost = Cf(tau_t) + (slew_penalty[t-1] if t > 0 else 0)
                 else:
                     cost = Cf(tau_t)
+
                 grad = torch.autograd.grad(cost.sum(), tau_t,
-                                           retain_graph=True,
-                                           create_graph=True)[0]
+                                           retain_graph=True)[0]
                 hessian = list()
                 for v_i in range(tau.shape[2]):
                     hessian.append(
                         torch.autograd.grad(grad[:, v_i].sum(), tau_t,
-                                            retain_graph=True,
-                                            create_graph=True)[0])
+                                            retain_graph=True)[0]
+                    )
                 hessian = torch.stack(hessian, dim=-1)
                 costs.append(cost)
                 grads.append(grad - util.bmv(hessian, tau_t))
@@ -543,12 +546,9 @@ More details: https://github.com/locuslab/mpc.pytorch/issues/12
                                              GradMethods.ANALYTIC_CHECK]:
                         Rt, St = [], []
                         for j in range(self.n_state):
-                            # TODO: This probably leaks memory.
-                            # Check retain/create_graph here
-                            # retain_graph = i < n_state-1
                             Rj, Sj = torch.autograd.grad(
                                 new_x[:,j].sum(), [xt, ut],
-                                retain_graph=True, create_graph=True)
+                                retain_graph=True)
                             if not diff:
                                 Rj, Sj = Rj.data, Sj.data
                             Rt.append(Rj)
