@@ -13,14 +13,14 @@ import cvxpy as cp
 
 import numdifftools as nd
 
-# import sys
-# from IPython.core import ultratb
-# sys.excepthook = ultratb.FormattedTB(mode='Verbose',
-#      color_scheme='Linux', call_pdb=1)
+import gc
+import os
+import psutil
 
 from mpc import mpc, util, pnqp
-from mpc.mpc import GradMethods, QuadCost, LinDx
 from mpc.dynamics import NNDynamics, AffineDynamics
+from mpc.lqr_step import LQRStep
+from mpc.mpc import GradMethods, QuadCost, LinDx
 
 def lqr_qp_cp(C, c, lower, upper):
     n = c.shape[0]
@@ -371,9 +371,9 @@ def test_lqr_backward_cost_linear_dynamics_unconstrained():
     du_dc = []
     du_dF = []
     for i in range(len(u_lqr)):
-        dCi = grad(u_lqr[i], [_C], create_graph=True)[0].view(-1)
-        dci = grad(u_lqr[i], [_c], create_graph=True)[0].view(-1)
-        dF = grad(u_lqr[i], [F], create_graph=True)[0].view(-1)
+        dCi = grad(u_lqr[i], [_C], retain_graph=True)[0].view(-1)
+        dci = grad(u_lqr[i], [_c], retain_graph=True)[0].view(-1)
+        dF = grad(u_lqr[i], [F], retain_graph=True)[0].view(-1)
         du_dC.append(dCi)
         du_dc.append(dci)
         du_dF.append(dF)
@@ -461,10 +461,10 @@ def test_lqr_backward_cost_linear_dynamics_constrained():
     du_dF = []
     du_dx_init = []
     for i in range(len(u_lqr_flat)):
-        dCi = grad(u_lqr_flat[i], [_C], create_graph=True)[0].view(-1)
-        dci = grad(u_lqr_flat[i], [_c], create_graph=True)[0].view(-1)
-        dF = grad(u_lqr_flat[i], [F], create_graph=True)[0].view(-1)
-        dx_init = grad(u_lqr_flat[i], [_x_init], create_graph=True)[0].view(-1)
+        dCi = grad(u_lqr_flat[i], [_C], retain_graph=True)[0].view(-1)
+        dci = grad(u_lqr_flat[i], [_c], retain_graph=True)[0].view(-1)
+        dF = grad(u_lqr_flat[i], [F], retain_graph=True)[0].view(-1)
+        dx_init = grad(u_lqr_flat[i], [_x_init], retain_graph=True)[0].view(-1)
         du_dC.append(dCi)
         du_dc.append(dci)
         du_dF.append(dF)
@@ -516,7 +516,7 @@ def test_lqr_backward_cost_affine_dynamics_module_constrained():
 
     du_dF = []
     for i in range(len(u_lqr_flat)):
-        dF = grad(u_lqr_flat[i], [F], create_graph=True)[0].view(-1)
+        dF = grad(u_lqr_flat[i], [F], retain_graph=True)[0].view(-1)
         du_dF.append(dF)
     du_dF = torch.stack(du_dF).data.numpy()
 
@@ -530,7 +530,7 @@ def test_lqr_backward_cost_affine_dynamics_module_constrained():
 
     du_dF_ = []
     for i in range(len(u_lqr_flat)):
-        dF = grad(u_lqr_flat[i], [F], create_graph=True)[0].view(-1)
+        dF = grad(u_lqr_flat[i], [F], retain_graph=True)[0].view(-1)
         du_dF_.append(dF)
     du_dF_ = torch.stack(du_dF_).data.numpy()
 
@@ -613,10 +613,10 @@ def test_lqr_backward_cost_nn_dynamics_module_constrained():
     du_dc = []
     du_dfc0b = []
     for i in range(len(u_lqr_flat)):
-        dCi = grad(u_lqr_flat[i], [_C], create_graph=True)[0].view(-1)
-        dci = grad(u_lqr_flat[i], [_c], create_graph=True)[0].view(-1)
+        dCi = grad(u_lqr_flat[i], [_C], retain_graph=True)[0].view(-1)
+        dci = grad(u_lqr_flat[i], [_c], retain_graph=True)[0].view(-1)
         dfc0b = grad(u_lqr_flat[i], [dynamics.fcs[0].bias],
-                     create_graph=True)[0].view(-1)
+                     retain_graph=True)[0].view(-1)
         du_dC.append(dCi)
         du_dc.append(dci)
         du_dfc0b.append(dfc0b)
@@ -708,10 +708,10 @@ def test_lqr_backward_cost_nn_dynamics_module_constrained_slew():
     du_dc = []
     du_dfc0b = []
     for i in range(len(u_lqr_flat)):
-        dCi = grad(u_lqr_flat[i], [_C], create_graph=True)[0].contiguous().view(-1)
-        dci = grad(u_lqr_flat[i], [_c], create_graph=True)[0].contiguous().view(-1)
+        dCi = grad(u_lqr_flat[i], [_C], retain_graph=True)[0].contiguous().view(-1)
+        dci = grad(u_lqr_flat[i], [_c], retain_graph=True)[0].contiguous().view(-1)
         dfc0b = grad(u_lqr_flat[i], [dynamics.fcs[0].bias],
-                     create_graph=True)[0].view(-1)
+                     retain_graph=True)[0].view(-1)
         du_dC.append(dCi)
         du_dc.append(dci)
         du_dfc0b.append(dfc0b)
@@ -839,12 +839,91 @@ def test_lqr_slew_rate():
     d_slew = torch.norm(u_slew[:-1] - u_slew[1:]).item()
     assert d_slew < d
 
+
+def test_memory():
+    torch.manual_seed(0)
+
+    n_batch, n_state, n_ctrl, T = 2, 3, 4, 5
+    n_sc = n_state + n_ctrl
+
+    # Randomly initialize a PSD quadratic cost and linear dynamics.
+    C = torch.randn(T*n_batch, n_sc, n_sc)
+    C = torch.bmm(C, C.transpose(1, 2)).view(T, n_batch, n_sc, n_sc)
+    c = torch.randn(T, n_batch, n_sc)
+
+    alpha = 0.2
+    R = (torch.eye(n_state)+alpha*torch.randn(n_state, n_state)).repeat(T, n_batch, 1, 1)
+    S = torch.randn(T, n_batch, n_state, n_ctrl)
+    F = torch.cat((R, S), dim=3)
+
+    # The initial state.
+    x_init = torch.randn(n_batch, n_state)
+
+    # The upper and lower control bounds.
+    u_lower = -torch.rand(T, n_batch, n_ctrl)
+    u_upper = torch.rand(T, n_batch, n_ctrl)
+
+    process = psutil.Process(os.getpid())
+
+    # gc.collect()
+    # start_mem = process.memory_info().rss
+
+    # _lqr = LQRStep(
+    #     n_state=n_state,
+    #     n_ctrl=n_ctrl,
+    #     T=T,
+    #     u_lower=u_lower,
+    #     u_upper=u_upper,
+    #     u_zero_I=u_zero_I,
+    #     true_cost=cost,
+    #     true_dynamics=dynamics,
+    #     delta_u=delta_u,
+    #     delta_space=True,
+    #     # current_x=x,
+    #     # current_u=u,
+    # )
+    # e = Variable(torch.Tensor())
+    # x, u = _lqr(x_init, C, c, F, f if f is not None else e)
+
+    # gc.collect()
+    # mem_used = process.memory_info().rss - start_mem
+    # print(mem_used)
+    # assert mem_used == 0
+
+    gc.collect()
+    start_mem = process.memory_info().rss
+
+    _mpc = mpc.MPC(
+        n_state=n_state,
+        n_ctrl=n_ctrl,
+        T=T,
+        u_lower=u_lower,
+        u_upper=u_upper,
+        lqr_iter=20,
+        verbose=1,
+        backprop=False,
+        exit_unconverged=False,
+    )
+    _mpc(x_init, QuadCost(C, c), LinDx(F))
+    del _mpc
+
+    gc.collect()
+    mem_used = process.memory_info().rss - start_mem
+    print(mem_used)
+    assert mem_used == 0
+
+
 if __name__=='__main__':
+    import sys
+    from IPython.core import ultratb
+    sys.excepthook = ultratb.FormattedTB(mode='Verbose',
+         color_scheme='Linux', call_pdb=1)
+
     test_lqr_qp()
     test_lqr_linear_unbounded()
     test_lqr_linear_bounded()
     test_lqr_linear_bounded_delta()
-    # test_lqr_cuda_singleton()
+    test_lqr_cuda_singleton()
     test_lqr_backward_cost_linear_dynamics_unconstrained()
     test_lqr_backward_cost_linear_dynamics_constrained()
     test_lqr_backward_cost_affine_dynamics_module_constrained()
@@ -852,3 +931,4 @@ if __name__=='__main__':
     test_lqr_backward_cost_nn_dynamics_module_constrained_slew()
     test_lqr_linearization()
     test_lqr_slew_rate()
+    # test_memory()
