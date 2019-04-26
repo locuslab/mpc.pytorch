@@ -189,9 +189,6 @@ class MPC(Module):
         assert isinstance(dx, LinDx) or \
             isinstance(dx, Module) or isinstance(dx, Function)
 
-        if isinstance(dx, LinDx):
-            assert dx.f is None, 'Untested but should work'
-
         # TODO: Clean up inferences, expansions, and assumptions made here.
         if self.n_batch is not None:
             n_batch = self.n_batch

@@ -105,6 +105,8 @@ def get_traj(T, u, x_init, dynamics):
     if isinstance(dynamics, LinDx):
         F = get_data_maybe(dynamics.F)
         f = get_data_maybe(dynamics.f)
+        if f is not None:
+            assert f.shape == F.shape[:3]
 
     x = [get_data_maybe(x_init)]
     for t in range(T):
@@ -116,7 +118,7 @@ def get_traj(T, u, x_init, dynamics):
                 xut = torch.cat((xt, ut), 1)
                 new_x = bmv(F[t], xut)
                 if f is not None:
-                    new_x += f
+                    new_x += f[t]
             else:
                 new_x = dynamics(Variable(xt), Variable(ut)).data
             x.append(new_x)

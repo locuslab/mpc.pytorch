@@ -15,7 +15,6 @@ import numdifftools as nd
 
 import gc
 import os
-import psutil
 
 from mpc import mpc, util, pnqp
 from mpc.dynamics import NNDynamics, AffineDynamics
@@ -318,11 +317,12 @@ def test_lqr_backward_cost_linear_dynamics_unconstrained():
     u_upper = beta*np.ones((T, n_batch, n_ctrl)).astype(np.float64)
 
     F = npr.randn(T-1, n_batch, n_state, n_sc)
+    f = npr.randn(T-1, n_batch, n_state)
 
-    def forward_numpy(C, c, x_init, u_lower, u_upper, F):
-        _C, _c, _x_init, _u_lower, _u_upper, F = [
+    def forward_numpy(C, c, x_init, u_lower, u_upper, F, f):
+        _C, _c, _x_init, _u_lower, _u_upper, F, f = [
             Variable(torch.Tensor(x).double()) if x is not None else None
-            for x in [C, c, x_init, u_lower, u_upper, F]
+            for x in [C, c, x_init, u_lower, u_upper, F, f]
         ]
 
         u_init = None
@@ -333,29 +333,34 @@ def test_lqr_backward_cost_linear_dynamics_unconstrained():
             exit_unconverged=False,
             backprop=False,
             max_linesearch_iter=2,
-        )(_x_init, QuadCost(_C, _c), LinDx(F))
+        )(_x_init, QuadCost(_C, _c), LinDx(F, f))
         return util.get_data_maybe(u_lqr.view(-1)).numpy()
 
     def f_c(c_flat):
         c_ = c_flat.reshape(T, n_batch, n_sc)
-        return forward_numpy(C, c_, x_init, u_lower, u_upper, F)
+        return forward_numpy(C, c_, x_init, u_lower, u_upper, F, f)
 
     def f_F(F_flat):
         F_ = F_flat.reshape(T-1, n_batch, n_state, n_sc)
-        return forward_numpy(C, c, x_init, u_lower, u_upper, F_)
+        return forward_numpy(C, c, x_init, u_lower, u_upper, F_ ,f)
 
-    u = forward_numpy(C, c, x_init, u_lower, u_upper, F)
+    def f_f(f_flat):
+        f_ = f_flat.reshape(T-1, n_batch, n_state)
+        return forward_numpy(C, c, x_init, u_lower, u_upper, F, f_)
+
+    u = forward_numpy(C, c, x_init, u_lower, u_upper, F, f)
 
     # Make sure the solution is not on the boundary.
     assert np.all(u != u_lower.reshape(-1)) and np.all(u != u_upper.reshape(-1))
 
     du_dc_fd = nd.Jacobian(f_c)(c.reshape(-1))
     du_dF_fd = nd.Jacobian(f_F)(F.reshape(-1))
+    du_df_fd = nd.Jacobian(f_f)(f.reshape(-1))
 
-    _C, _c, _x_init, _u_lower, _u_upper, F = [
+    _C, _c, _x_init, _u_lower, _u_upper, F, f = [
         Variable(torch.Tensor(x).double(), requires_grad=True)
         if x is not None else None
-        for x in [C, c, x_init, u_lower, u_upper, F]
+        for x in [C, c, x_init, u_lower, u_upper, F, f]
     ]
 
     u_init = None
@@ -364,25 +369,30 @@ def test_lqr_backward_cost_linear_dynamics_unconstrained():
         lqr_iter=20,
         verbose=1,
         exit_unconverged=False,
-    )(_x_init, QuadCost(_C, _c), LinDx(F))
+    )(_x_init, QuadCost(_C, _c), LinDx(F, f))
     u_lqr = u_lqr.view(-1)
 
     du_dC = []
     du_dc = []
     du_dF = []
+    du_df = []
     for i in range(len(u_lqr)):
         dCi = grad(u_lqr[i], [_C], retain_graph=True)[0].view(-1)
         dci = grad(u_lqr[i], [_c], retain_graph=True)[0].view(-1)
         dF = grad(u_lqr[i], [F], retain_graph=True)[0].view(-1)
+        df = grad(u_lqr[i], [f], retain_graph=True)[0].view(-1)
         du_dC.append(dCi)
         du_dc.append(dci)
         du_dF.append(dF)
+        du_df.append(df)
     du_dC = torch.stack(du_dC).data.numpy()
     du_dc = torch.stack(du_dc).data.numpy()
     du_dF = torch.stack(du_dF).data.numpy()
+    du_df = torch.stack(du_df).data.numpy()
 
     npt.assert_allclose(du_dc_fd, du_dc, atol=1e-4)
     npt.assert_allclose(du_dF, du_dF_fd, atol=1e-4)
+    npt.assert_allclose(du_df, du_df_fd, atol=1e-4)
 
 
 def test_lqr_backward_cost_linear_dynamics_constrained():
@@ -402,11 +412,12 @@ def test_lqr_backward_cost_linear_dynamics_constrained():
     u_upper = beta*np.ones((T, n_batch, n_ctrl)).astype(np.float64)
 
     F = npr.randn(T-1, n_batch, n_state, n_sc)
+    f = npr.randn(T-1, n_batch, n_state)
 
-    def forward_numpy(C, c, x_init, u_lower, u_upper, F):
-        _C, _c, _x_init, _u_lower, _u_upper, F = [
+    def forward_numpy(C, c, x_init, u_lower, u_upper, F, f):
+        _C, _c, _x_init, _u_lower, _u_upper, F, f = [
             Variable(torch.Tensor(x).double()) if x is not None else None
-            for x in [C, c, x_init, u_lower, u_upper, F]
+            for x in [C, c, x_init, u_lower, u_upper, F, f]
         ]
 
         u_init = None
@@ -417,22 +428,26 @@ def test_lqr_backward_cost_linear_dynamics_constrained():
             exit_unconverged=True,
             backprop=False,
             max_linesearch_iter=2,
-        )(_x_init, QuadCost(_C, _c), LinDx(F))
+        )(_x_init, QuadCost(_C, _c), LinDx(F, f))
         return util.get_data_maybe(u_lqr.view(-1)).numpy()
 
     def f_c(c_flat):
         c_ = c_flat.reshape(T, n_batch, n_sc)
-        return forward_numpy(C, c_, x_init, u_lower, u_upper, F)
+        return forward_numpy(C, c_, x_init, u_lower, u_upper, F, f)
 
     def f_F(F_flat):
         F_ = F_flat.reshape(T-1, n_batch, n_state, n_sc)
-        return forward_numpy(C, c, x_init, u_lower, u_upper, F_)
+        return forward_numpy(C, c, x_init, u_lower, u_upper, F_, f)
+
+    def f_f(f_flat):
+        f_ = f_flat.reshape(T-1, n_batch, n_state)
+        return forward_numpy(C, c, x_init, u_lower, u_upper, F, f_)
 
     def f_x_init(x_init):
         x_init = x_init.reshape(1, -1)
-        return forward_numpy(C, c, x_init, u_lower, u_upper, F)
+        return forward_numpy(C, c, x_init, u_lower, u_upper, F, f)
 
-    u = forward_numpy(C, c, x_init, u_lower, u_upper, F)
+    u = forward_numpy(C, c, x_init, u_lower, u_upper, F, f)
 
     # Make sure the solution is strictly partially on the boundary.
     assert np.any(u == u_lower.reshape(-1)) or np.any(u == u_upper.reshape(-1))
@@ -440,12 +455,13 @@ def test_lqr_backward_cost_linear_dynamics_constrained():
 
     du_dc_fd = nd.Jacobian(f_c)(c.reshape(-1))
     du_dF_fd = nd.Jacobian(f_F)(F.reshape(-1))
+    du_df_fd = nd.Jacobian(f_f)(f.reshape(-1))
     du_dxinit_fd = nd.Jacobian(f_x_init)(x_init[0])
 
-    _C, _c, _x_init, _u_lower, _u_upper, F = [
+    _C, _c, _x_init, _u_lower, _u_upper, F, f = [
         Variable(torch.Tensor(x).double(), requires_grad=True)
         if x is not None else None
-        for x in [C, c, x_init, u_lower, u_upper, F]
+        for x in [C, c, x_init, u_lower, u_upper, F, f]
     ]
 
     u_init = None
@@ -453,29 +469,34 @@ def test_lqr_backward_cost_linear_dynamics_constrained():
         n_state, n_ctrl, T, _u_lower, _u_upper, u_init,
         lqr_iter=20,
         verbose=1,
-    )(_x_init, QuadCost(_C, _c), LinDx(F))
+    )(_x_init, QuadCost(_C, _c), LinDx(F, f))
     u_lqr_flat = u_lqr.view(-1)
 
     du_dC = []
     du_dc = []
     du_dF = []
+    du_df = []
     du_dx_init = []
     for i in range(len(u_lqr_flat)):
         dCi = grad(u_lqr_flat[i], [_C], retain_graph=True)[0].view(-1)
         dci = grad(u_lqr_flat[i], [_c], retain_graph=True)[0].view(-1)
         dF = grad(u_lqr_flat[i], [F], retain_graph=True)[0].view(-1)
+        df = grad(u_lqr_flat[i], [f], retain_graph=True)[0].view(-1)
         dx_init = grad(u_lqr_flat[i], [_x_init], retain_graph=True)[0].view(-1)
         du_dC.append(dCi)
         du_dc.append(dci)
         du_dF.append(dF)
+        du_df.append(df)
         du_dx_init.append(dx_init)
     du_dC = torch.stack(du_dC).data.numpy()
     du_dc = torch.stack(du_dc).data.numpy()
     du_dF = torch.stack(du_dF).data.numpy()
+    du_df = torch.stack(du_df).data.numpy()
     du_dx_init = torch.stack(du_dx_init).data.numpy()
 
     npt.assert_allclose(du_dc_fd, du_dc, atol=1e-4)
     npt.assert_allclose(du_dF, du_dF_fd, atol=1e-4)
+    npt.assert_allclose(du_df, du_df_fd, atol=1e-4)
     npt.assert_allclose(du_dx_init, du_dxinit_fd, atol=1e-4)
 
 
@@ -841,6 +862,8 @@ def test_lqr_slew_rate():
 
 
 def test_memory():
+    import psutil
+
     torch.manual_seed(0)
 
     n_batch, n_state, n_ctrl, T = 2, 3, 4, 5
@@ -923,7 +946,7 @@ if __name__=='__main__':
     test_lqr_linear_unbounded()
     test_lqr_linear_bounded()
     test_lqr_linear_bounded_delta()
-    test_lqr_cuda_singleton()
+    # test_lqr_cuda_singleton()
     test_lqr_backward_cost_linear_dynamics_unconstrained()
     test_lqr_backward_cost_linear_dynamics_constrained()
     test_lqr_backward_cost_affine_dynamics_module_constrained()
