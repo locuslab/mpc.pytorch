@@ -259,9 +259,9 @@ class LQRStep(Function):
                         Kt = -Qt_uu_inv.bmm(Qt_ux)
                         kt = util.bmv(-Qt_uu_inv, qt_u)
 
-                        # Qt_uu_LU = Qt_uu.btrifact()
-                        # Kt = -Qt_ux.btrisolve(*Qt_uu_LU)
-                        # kt = -qt_u.btrisolve(*Qt_uu_LU)
+                        # Qt_uu_LU = Qt_uu.lu()
+                        # Kt = -Qt_ux.lu_solve(*Qt_uu_LU)
+                        # kt = -qt_u.lu_solve(*Qt_uu_LU)
                     else:
                         # Solve with zero constraints on the active controls.
                         I = self.u_zero_I[t]
@@ -288,9 +288,9 @@ class LQRStep(Function):
                             Kt = -(1./Qt_uu_)*Qt_ux_
                             kt = -(1./Qt_uu.squeeze(2))*qt_u_
                         else:
-                            Qt_uu_LU_ = Qt_uu_.btrifact()
-                            Kt = -Qt_ux_.btrisolve(*Qt_uu_LU_)
-                            kt = -qt_u_.btrisolve(*Qt_uu_LU_)
+                            Qt_uu_LU_ = Qt_uu_.lu()
+                            Kt = -Qt_ux_.lu_solve(*Qt_uu_LU_)
+                            kt = -qt_u_.lu_solve(*Qt_uu_LU_)
             else:
                 assert self.delta_space
                 lb = self.get_bound('lower', t) - u[t]
@@ -311,7 +311,7 @@ class LQRStep(Function):
                     # Bad naming, Qt_uu_free_LU isn't the LU in this case.
                     Kt = -((1./Qt_uu_free_LU)*Qt_ux_)
                 else:
-                    Kt = -Qt_ux_.btrisolve(*Qt_uu_free_LU)
+                    Kt = -Qt_ux_.lu_solve(*Qt_uu_free_LU)
 
             Kt_T = Kt.transpose(1,2)
 
