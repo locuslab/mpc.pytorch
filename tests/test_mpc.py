@@ -7,7 +7,7 @@ from torch.nn.parameter import Parameter
 import numpy as np
 import numpy.random as npr
 import numpy.testing as npt
-from numpy.testing import decorators
+from numpy.testing import dec
 
 import cvxpy as cp
 
@@ -240,7 +240,7 @@ def test_lqr_linear_bounded_delta():
     assert torch.abs(u_lqr).max() <= delta_u
 
 
-@npt.decorators.skipif(not torch.cuda.is_available())
+@dec.skipif(not torch.cuda.is_available())
 def test_lqr_cuda_singleton():
     npr.seed(1)
 

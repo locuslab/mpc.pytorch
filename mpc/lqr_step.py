@@ -264,11 +264,11 @@ class LQRStep(Function):
                         # kt = -qt_u.lu_solve(*Qt_uu_LU)
                     else:
                         # Solve with zero constraints on the active controls.
-                        I = self.u_zero_I[t]
+                        I = self.u_zero_I[t].float()
                         notI = 1-I
 
                         qt_u_ = qt_u.clone()
-                        qt_u_[I] = 0
+                        qt_u_[I.bool()] = 0
 
                         Qt_uu_ = Qt_uu.clone()
 
@@ -278,11 +278,11 @@ class LQRStep(Function):
                         else:
                             Qt_uu_I = 1-util.bger(notI, notI)
 
-                        Qt_uu_[Qt_uu_I] = 0.
-                        Qt_uu_[util.bdiag(I)] += 1e-8
+                        Qt_uu_[Qt_uu_I.bool()] = 0.
+                        Qt_uu_[util.bdiag(I).bool()] += 1e-8
 
                         Qt_ux_ = Qt_ux.clone()
-                        Qt_ux_[I.unsqueeze(2).repeat(1,1,Qt_ux.size(2))] = 0.
+                        Qt_ux_[I.unsqueeze(2).repeat(1,1,Qt_ux.size(2)).bool()] = 0.
 
                         if self.n_ctrl == 1:
                             Kt = -(1./Qt_uu_)*Qt_ux_
@@ -290,7 +290,7 @@ class LQRStep(Function):
                         else:
                             Qt_uu_LU_ = Qt_uu_.lu()
                             Kt = -Qt_ux_.lu_solve(*Qt_uu_LU_)
-                            kt = -qt_u_.lu_solve(*Qt_uu_LU_)
+                            kt = -qt_u_.unsqueeze(2).lu_solve(*Qt_uu_LU_).squeeze(2)
             else:
                 assert self.delta_space
                 lb = self.get_bound('lower', t) - u[t]
@@ -306,7 +306,7 @@ class LQRStep(Function):
                 n_total_qp_iter += 1+n_qp_iter
                 prev_kt = kt
                 Qt_ux_ = Qt_ux.clone()
-                Qt_ux_[(1-If).unsqueeze(2).repeat(1,1,Qt_ux.size(2))] = 0
+                Qt_ux_[(1-If).unsqueeze(2).repeat(1,1,Qt_ux.size(2)).bool()] = 0
                 if self.n_ctrl == 1:
                     # Bad naming, Qt_uu_free_LU isn't the LU in this case.
                     Kt = -((1./Qt_uu_free_LU)*Qt_ux_)

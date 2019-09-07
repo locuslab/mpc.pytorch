@@ -16,7 +16,7 @@ def pnqp(H, q, lower, upper, x_init=None, n_iter=20):
             x_init = -(1./H.squeeze(2))*q
         else:
             H_lu = H.lu()
-            x_init = -q.lu_solve(*H_lu) # Clamped in the x assignment.
+            x_init = -q.unsqueeze(2).lu_solve(*H_lu).squeeze(2) # Clamped in the x assignment.
     else:
         x_init = x_init.clone() # Don't over-write the original x_init.
 
@@ -27,7 +27,9 @@ def pnqp(H, q, lower, upper, x_init=None, n_iter=20):
 
     for i in range(n_iter):
         g = util.bmv(H, x) + q
-        Ic = ((x == lower) & (g > 0)) | ((x == upper) & (g < 0))
+
+        # TODO: Could clean up the types here.
+        Ic = (((x == lower) & (g > 0)) | ((x == upper) & (g < 0))).float()
         If = 1-Ic
 
         if If.is_cuda:
@@ -40,16 +42,16 @@ def pnqp(H, q, lower, upper, x_init=None, n_iter=20):
             Hfc_I = util.bger(If, Ic)
 
         g_ = g.clone()
-        g_[Ic] = 0.
+        g_[Ic.bool()] = 0.
         H_ = H.clone()
-        H_[not_Hff_I] = 0.0
+        H_[not_Hff_I.bool()] = 0.0
         H_ += pnqp_I
 
         if n == 1:
             dx = -(1./H_.squeeze(2))*g_
         else:
             H_lu_ = H_.lu()
-            dx = -g_.lu_solve(*H_lu_)
+            dx = -g_.unsqueeze(2).lu_solve(*H_lu_).squeeze(2)
 
         J = torch.norm(dx, 2, 1) >= 1e-4
         m = J.sum().item() # Number of active examples in the batch.
