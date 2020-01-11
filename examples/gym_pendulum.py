@@ -55,7 +55,7 @@ if __name__ == "__main__":
     if downward_start:
         env.state = [np.pi, 1]
 
-    env = wrappers.Monitor(env, '/tmp/mppi/', force=True)
+    env = wrappers.Monitor(env, '/tmp/box_ddp_pendulum/', force=True)
     env.reset()
     if downward_start:
         env.env.state = [np.pi, 1]
