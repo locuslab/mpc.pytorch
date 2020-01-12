@@ -91,7 +91,7 @@ if __name__ == "__main__":
         # recreate controller using updated u_init (kind of wasteful right?)
         ctrl = mpc.MPC(nx, nu, TIMESTEPS, u_lower=ACTION_LOW, u_upper=ACTION_HIGH, lqr_iter=LQR_ITER,
                        exit_unconverged=False, eps=1e-2,
-                       n_batch=N_BATCH, backprop=False, verbose=1, u_init=u_init,
+                       n_batch=N_BATCH, backprop=False, verbose=0, u_init=u_init,
                        grad_method=mpc.GradMethods.AUTO_DIFF)
 
         # compute action based on current state, dynamics, and cost
