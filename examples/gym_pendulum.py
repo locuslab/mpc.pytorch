@@ -19,7 +19,7 @@ if __name__ == "__main__":
     ENV_NAME = "Pendulum-v0"
     TIMESTEPS = 10  # T
     N_BATCH = 1
-    LQR_ITER = 10
+    LQR_ITER = 5
     ACTION_LOW = -2.0
     ACTION_HIGH = 2.0
 
@@ -41,7 +41,7 @@ if __name__ == "__main__":
             newth = th + newthdot * dt
             newthdot = torch.clamp(newthdot, -8, 8)
 
-            state = torch.cat((newth, newthdot), dim=1)
+            state = torch.cat((angle_normalize(newth), newthdot), dim=1)
             return state
 
 
@@ -90,7 +90,9 @@ if __name__ == "__main__":
         command_start = time.perf_counter()
         # recreate controller using updated u_init (kind of wasteful right?)
         ctrl = mpc.MPC(nx, nu, TIMESTEPS, u_lower=ACTION_LOW, u_upper=ACTION_HIGH, lqr_iter=LQR_ITER,
-                       n_batch=N_BATCH, backprop=False, verbose=1, u_init=u_init, grad_method=mpc.GradMethods.AUTO_DIFF)
+                       exit_unconverged=False, eps=1e-2,
+                       n_batch=N_BATCH, backprop=False, verbose=1, u_init=u_init,
+                       grad_method=mpc.GradMethods.AUTO_DIFF)
 
         # compute action based on current state, dynamics, and cost
         nominal_states, nominal_actions, nominal_objs = ctrl(state, cost, PendulumDynamics())
