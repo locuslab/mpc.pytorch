@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# Use for cloned repository only
+# Remove when using installed mpc.pytorch 
+import sys; sys.path.append('..')
+
 import torch
 from torch.autograd import Function, Variable, grad
 import torch.nn.functional as F

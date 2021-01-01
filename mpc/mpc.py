@@ -43,7 +43,7 @@ class SlewRateCost(Module):
         self.slew_C = slew_C
         self.n_state = n_state
         self.n_ctrl = n_ctrl
-
+        
     def forward(self, tau):
         true_tau = tau[:, self.n_ctrl:]
         true_cost = self.cost(true_tau)
@@ -142,7 +142,7 @@ class MPC(Module):
             not_improved_lim=5,
             best_cost_eps=1e-4
     ):
-        super().__init__()
+        super(MPC, self).__init__()
 
         assert (u_lower is None) == (u_upper is None)
         assert max_linesearch_iter > 0
@@ -179,8 +179,6 @@ class MPC(Module):
         self.slew_rate_penalty = slew_rate_penalty
         self.prev_ctrl = prev_ctrl
 
-
-    # @profile
     def forward(self, x_init, cost, dx):
         # QuadCost.C: [T, n_batch, n_tau, n_tau]
         # QuadCost.c: [T, n_batch, n_tau]
@@ -261,9 +259,8 @@ class MPC(Module):
                 C, c, _ = self.approximate_cost(
                     x, util.detach_maybe(u), cost, diff=False)
 
-            x, u, _lqr = self.solve_lqr_subproblem(
+            x, u, back_out, for_out = self.solve_lqr_subproblem(
                 x_init, C, c, F, f, cost, dx, x, u)
-            back_out, for_out = _lqr.back_out, _lqr.for_out
             n_not_improved += 1
 
             assert x.ndimension() == 3
@@ -316,7 +313,7 @@ class MPC(Module):
         else:
             C, c, _ = self.approximate_cost(x, u, cost, diff=True)
 
-        x, u, _ = self.solve_lqr_subproblem(
+        x, u, _, _ = self.solve_lqr_subproblem(
             x_init, C, c, F, f, cost, dx, x, u, no_op_forward=True)
 
         if self.detach_unconverged:
@@ -359,9 +356,9 @@ class MPC(Module):
                 no_op_forward=no_op_forward,
             )
             e = Variable(torch.Tensor())
-            x, u = _lqr(x_init, C, c, F, f if f is not None else e)
+            x, u, back_out, for_out = _lqr(x_init, C, c, F, f if f is not None else e)
 
-            return x, u, _lqr
+            return x, u, back_out, for_out # return both backward and forward solution of LQRStep
         else:
             nsc = self.n_state + self.n_ctrl
             _n_state = nsc
@@ -424,7 +421,7 @@ class MPC(Module):
                 _true_cost = SlewRateCost(
                     cost, slew_C, self.n_state, self.n_ctrl
                 )
-
+                
             _lqr = LQRStep(
                 n_state=_n_state,
                 n_ctrl=self.n_ctrl,
