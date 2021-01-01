@@ -1,3 +1,7 @@
+# Use for cloned repository only
+# Remove when using installed mpc.pytorch 
+import sys; sys.path.append('..')
+
 import logging
 import math
 import time

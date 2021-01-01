@@ -20,7 +20,7 @@ LqrForOut = namedtuple(
 )
 
 
-class LQRStep(Function):
+class LQRStep(Module):
     """A single step of the box-constrained iLQR solver.
 
     Required Args:
@@ -54,6 +54,8 @@ class LQRStep(Function):
             back_eps=1e-3,
             no_op_forward=False,
     ):
+        super(LQRStep, self).__init__()
+
         self.n_state = n_state
         self.n_ctrl = n_ctrl
         self.T = T
@@ -89,9 +91,7 @@ class LQRStep(Function):
     # @profile
     def forward(self, x_init, C, c, F, f=None):
         if self.no_op_forward:
-            self.save_for_backward(
-                x_init, C, c, F, f, self.current_x, self.current_u)
-            return self.current_x, self.current_u
+            return self.current_x, self.current_u, None, None
 
         if self.delta_space:
             # Taylor-expand the objective to do the backward pass in
@@ -109,12 +109,11 @@ class LQRStep(Function):
         else:
             assert False
 
-        Ks, ks, self.back_out = self.lqr_backward(C, c_back, F, f_back)
-        new_x, new_u, self.for_out = self.lqr_forward(
+        Ks, ks, back_out = self.lqr_backward(C, c_back, F, f_back)
+        new_x, new_u, for_out = self.lqr_forward(
             x_init, C, c, F, f, Ks, ks)
-        self.save_for_backward(x_init, C, c, F, f, new_x, new_u)
 
-        return new_x, new_u
+        return new_x, new_u, back_out, for_out
 
     def backward(self, dl_dx, dl_du):
         start = time.time()
