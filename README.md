@@ -1,4 +1,6 @@
-# mpc.pytorch • [![Build Status][travis-image]][travis] [![PyPi][pypi-image]][pypi] [![License][license-image]][license]
+# mpc.pytorch • [![Circle CI](https://circleci.com/gh/Juju-botu/mpc.pytorch.svg?style=shield)](https://github.com/Juju-botu/mpc.pytorch) [![PyPi][pypi-image]][pypi] [![License][license-image]][license]
+ <!-- [![Build Status][travis-image]][travis] -->
+ 
 
 [travis-image]: https://travis-ci.org/locuslab/mpc.pytorch.png?branch=master
 [travis]: http://travis-ci.org/locuslab/mpc.pytorch
