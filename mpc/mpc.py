@@ -261,9 +261,9 @@ class MPC(Module):
                 C, c, _ = self.approximate_cost(
                     x, util.detach_maybe(u), cost, diff=False)
 
-            x, u, _lqr = self.solve_lqr_subproblem(
+            x, u, _lqr, back_out, for_out = self.solve_lqr_subproblem(
                 x_init, C, c, F, f, cost, dx, x, u)
-            back_out, for_out = _lqr.back_out, _lqr.for_out
+            # back_out, for_out = _lqr.back_out, _lqr.for_out
             n_not_improved += 1
 
             assert x.ndimension() == 3
@@ -316,7 +316,7 @@ class MPC(Module):
         else:
             C, c, _ = self.approximate_cost(x, u, cost, diff=True)
 
-        x, u, _ = self.solve_lqr_subproblem(
+        x, u, _, _, _ = self.solve_lqr_subproblem(
             x_init, C, c, F, f, cost, dx, x, u, no_op_forward=True)
 
         if self.detach_unconverged:
@@ -359,9 +359,9 @@ class MPC(Module):
                 no_op_forward=no_op_forward,
             )
             e = Variable(torch.Tensor())
-            x, u = _lqr(x_init, C, c, F, f if f is not None else e)
+            x, u, back_out, for_out = _lqr(x_init, C, c, F, f if f is not None else e)
 
-            return x, u, _lqr
+            return x, u, _lqr, back_out, for_out
         else:
             nsc = self.n_state + self.n_ctrl
             _n_state = nsc
@@ -443,10 +443,10 @@ class MPC(Module):
                 back_eps=self.back_eps,
                 no_op_forward=no_op_forward,
             )
-            x, u = _lqr(_x_init, _C, _c, _F, _f)
+            x, u, back_out, for_out = _lqr(_x_init, _C, _c, _F, _f)
             x = x[:,:,self.n_ctrl:]
 
-            return x, u, _lqr
+            return x, u, _lqr, back_out, for_out
 
     def approximate_cost(self, x, u, Cf, diff=True):
         with torch.enable_grad():
@@ -472,7 +472,7 @@ More details: https://github.com/locuslab/mpc.pytorch/issues/12
                     cost = Cf(tau_t)
 
                 grad = torch.autograd.grad(cost.sum(), tau_t,
-                                           retain_graph=True)[0]
+                                           create_graph=True, retain_graph=True)[0]
                 hessian = list()
                 for v_i in range(tau.shape[2]):
                     hessian.append(
