@@ -157,7 +157,7 @@ def LQRStep(n_state,
                 Kt_T.bmm(qt_u.unsqueeze(2)).squeeze(2) + \
                 Kt_T.bmm(Qt_uu).bmm(kt.unsqueeze(2)).squeeze(2)
 
-        return Ks, ks, LqrBackOut(n_total_qp_iter=n_total_qp_iter)
+        return Ks, ks, n_total_qp_iter
 
 
     # @profile
@@ -210,7 +210,7 @@ def LQRStep(n_state,
                         I = ub > ub_limit
                         ub[I] = ub_limit if isinstance(lb_limit, float) else ub_limit[I]
                     # TODO(eugenevinitsky) why do we need to do this here?
-                    new_ut = util.eclamp(new_ut, lb.double(), ub.double())
+                    new_ut = util.eclamp(new_ut, lb, ub)
                 new_u.append(new_ut)
 
                 new_xut = torch.cat((new_xt, new_ut), dim=1)
@@ -273,12 +273,13 @@ def LQRStep(n_state,
 
     class LQRStepFn(Function):
         # @profile
+        @staticmethod
         def forward(ctx, x_init, C, c, F, f=None):
             if no_op_forward:
                 ctx.save_for_backward(
                     x_init, C, c, F, f, current_x, current_u)
                 ctx.current_x, ctx.current_u = current_x, current_u
-                return current_x, current_u, None, None
+                return current_x, current_u
 
             if delta_space:
                 # Taylor-expand the objective to do the backward pass in
@@ -295,17 +296,19 @@ def LQRStep(n_state,
                 f_back = None
             else:
                 assert False
-            
+
             ctx.current_x = current_x
             ctx.current_u = current_u
 
-            Ks, ks, back_out = lqr_backward(ctx, C, c_back, F, f_back)
+            Ks, ks, n_total_qp_iter = lqr_backward(ctx, C, c_back, F, f_back)
             new_x, new_u, for_out = lqr_forward(ctx,
                 x_init, C, c, F, f, Ks, ks)
             ctx.save_for_backward(x_init, C, c, F, f, new_x, new_u)
 
-            return new_x, new_u, back_out, for_out
+            return new_x, new_u, torch.Tensor([n_total_qp_iter]), \
+              for_out.costs, for_out.full_du_norm, for_out.mean_alphas
 
+        @staticmethod
         def backward(ctx, dl_dx, dl_du, temp=None, temp2=None):
             start = time.time()
             x_init, C, c, F, f, new_x, new_u = ctx.saved_tensors

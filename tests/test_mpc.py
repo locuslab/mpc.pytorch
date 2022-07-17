@@ -946,7 +946,6 @@ if __name__=='__main__':
     test_lqr_linear_unbounded()
     test_lqr_linear_bounded()
     test_lqr_linear_bounded_delta()
-    # test_lqr_cuda_singleton()
     test_lqr_backward_cost_linear_dynamics_unconstrained()
     test_lqr_backward_cost_linear_dynamics_constrained()
     test_lqr_backward_cost_affine_dynamics_module_constrained()
@@ -954,4 +953,6 @@ if __name__=='__main__':
     test_lqr_backward_cost_nn_dynamics_module_constrained_slew()
     test_lqr_linearization()
     test_lqr_slew_rate()
+
+    # test_lqr_cuda_singleton()
     # test_memory()

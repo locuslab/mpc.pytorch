@@ -261,9 +261,8 @@ class MPC(Module):
                 C, c, _ = self.approximate_cost(
                     x, util.detach_maybe(u), cost, diff=False)
 
-            x, u, _lqr, back_out, for_out = self.solve_lqr_subproblem(
-                x_init, C, c, F, f, cost, dx, x, u)
-            # back_out, for_out = _lqr.back_out, _lqr.for_out
+            x, u, n_total_qp_iter, costs, full_du_norm, mean_alphas = \
+              self.solve_lqr_subproblem(x_init, C, c, F, f, cost, dx, x, u)
             n_not_improved += 1
 
             assert x.ndimension() == 3
@@ -273,31 +272,31 @@ class MPC(Module):
                 best = {
                     'x': list(torch.split(x, split_size_or_sections=1, dim=1)),
                     'u': list(torch.split(u, split_size_or_sections=1, dim=1)),
-                    'costs': for_out.costs,
-                    'full_du_norm': for_out.full_du_norm,
+                    'costs': costs,
+                    'full_du_norm': full_du_norm,
                 }
             else:
                 for j in range(n_batch):
-                    if for_out.costs[j] <= best['costs'][j] + self.best_cost_eps:
+                    if costs[j] <= best['costs'][j] + self.best_cost_eps:
                         n_not_improved = 0
                         best['x'][j] = x[:,j].unsqueeze(1)
                         best['u'][j] = u[:,j].unsqueeze(1)
-                        best['costs'][j] = for_out.costs[j]
-                        best['full_du_norm'][j] = for_out.full_du_norm[j]
+                        best['costs'][j] = costs[j]
+                        best['full_du_norm'][j] = full_du_norm[j]
 
             if self.verbose > 0:
                 util.table_log('lqr', (
                     ('iter', i),
                     ('mean(cost)', torch.mean(best['costs']).item(), '{:.4e}'),
-                    ('||full_du||_max', max(for_out.full_du_norm).item(), '{:.2e}'),
-                    # ('||alpha_du||_max', max(for_out.alpha_du_norm), '{:.2e}'),
+                    ('||full_du||_max', max(full_du_norm).item(), '{:.2e}'),
+                    # ('||alpha_du||_max', max(alpha_du_norm), '{:.2e}'),
                     # TODO: alphas, total_qp_iters here is for the current
                     # iterate, not the best
-                    ('mean(alphas)', for_out.mean_alphas.item(), '{:.2e}'),
-                    ('total_qp_iters', back_out.n_total_qp_iter),
+                    ('mean(alphas)', mean_alphas.item(), '{:.2e}'),
+                    ('total_qp_iters', n_total_qp_iter),
                 ))
 
-            if max(for_out.full_du_norm) < self.eps or \
+            if max(full_du_norm) < self.eps or \
                n_not_improved > self.not_improved_lim:
                 break
 
@@ -316,7 +315,7 @@ class MPC(Module):
         else:
             C, c, _ = self.approximate_cost(x, u, cost, diff=True)
 
-        x, u, _, _, _ = self.solve_lqr_subproblem(
+        x, u = self.solve_lqr_subproblem(
             x_init, C, c, F, f, cost, dx, x, u, no_op_forward=True)
 
         if self.detach_unconverged:
@@ -328,7 +327,7 @@ class MPC(Module):
                     print("LQR Warning: All examples did not converge to a fixed point.")
                     print("Detaching and *not* backpropping through the bad examples.")
 
-                I = for_out.full_du_norm < self.eps
+                I = full_du_norm < self.eps
                 Ix = Variable(I.unsqueeze(0).unsqueeze(2).expand_as(x)).type_as(x.data)
                 Iu = Variable(I.unsqueeze(0).unsqueeze(2).expand_as(u)).type_as(u.data)
                 x = x*Ix + x.clone().detach()*(1.-Ix)
@@ -359,9 +358,7 @@ class MPC(Module):
                 no_op_forward=no_op_forward,
             )
             e = Variable(torch.Tensor())
-            x, u, back_out, for_out = _lqr(x_init, C, c, F, f if f is not None else e)
-
-            return x, u, _lqr, back_out, for_out
+            return _lqr(x_init, C, c, F, f if f is not None else e)
         else:
             nsc = self.n_state + self.n_ctrl
             _n_state = nsc
@@ -443,10 +440,9 @@ class MPC(Module):
                 back_eps=self.back_eps,
                 no_op_forward=no_op_forward,
             )
-            x, u, back_out, for_out = _lqr(_x_init, _C, _c, _F, _f)
+            x, *rest = _lqr(_x_init, _C, _c, _F, _f)
             x = x[:,:,self.n_ctrl:]
-
-            return x, u, _lqr, back_out, for_out
+            return [x] + rest
 
     def approximate_cost(self, x, u, Cf, diff=True):
         with torch.enable_grad():
