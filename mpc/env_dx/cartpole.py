@@ -95,18 +95,22 @@ class CartpoleDx(nn.Module):
 
         return state
 
-    def get_frame(self, state):
+    def get_frame(self, state, ax=None):
         state = util.get_data_maybe(state.view(-1))
         assert len(state) == 5
         x, dx, cos_th, sin_th, dth = torch.unbind(state)
         gravity, masscart, masspole, length = torch.unbind(self.params)
         th = np.arctan2(sin_th, cos_th)
-        th_x = sin_th*length*2
-        th_y = cos_th*length*2
-        fig, ax = plt.subplots(figsize=(6,6))
+        th_x = sin_th*length
+        th_y = cos_th*length
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6,6))
+        else:
+            fig = ax.get_figure()
         ax.plot((x,x+th_x), (0, th_y), color='k')
-        ax.set_xlim((-5., 5.))
-        ax.set_ylim((-2., 2.))
+        ax.set_xlim((-length*2, length*2))
+        ax.set_ylim((-length*2, length*2))
         return fig, ax
 
     def get_true_obj(self):
