@@ -84,9 +84,11 @@ def solve_lqr(dx, xinit, q, p, T,
     )
     p = p.unsqueeze(0).repeat(T, n_batch, 1)
 
+    cost = mpc.QuadCost(Q, p)
+
     lqr_iter = 100 if u_init is None else 10
     x_lqr, u_lqr, objs_lqr = mpc.MPC(
-        dx.n_state, dx.n_ctrl, T, xinit,
+        dx.n_state, dx.n_ctrl, T,
         u_lower=dx.lower, u_upper=dx.upper, u_init=u_init,
         lqr_iter=lqr_iter,
         verbose=1,
@@ -98,7 +100,7 @@ def solve_lqr(dx, xinit, q, p, T,
         eps=1e-4,
         # slew_rate_penalty=self.slew_rate_penalty,
         # prev_ctrl=prev_ctrl,
-    )(Q, p, dx)
+    )(xinit, cost, dx)
     return x_lqr, u_lqr
 
 
